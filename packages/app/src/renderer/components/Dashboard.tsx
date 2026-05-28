@@ -30,11 +30,12 @@ function statusText(idx: StatusPayload["indexStatus"]): string {
   }
 }
 
-function FolderCard({ dir, onPause, onResume, onReindex }: {
+function FolderCard({ dir, onPause, onResume, onReindex, onRemove }: {
   dir: DirInfo;
   onPause: () => void;
   onResume: () => void;
   onReindex: () => void;
+  onRemove: () => void;
 }) {
   return (
     <div className={`folder-card${dir.paused ? " paused" : ""}`}>
@@ -43,6 +44,7 @@ function FolderCard({ dir, onPause, onResume, onReindex }: {
         <div className="folder-badges">
           {dir.paused && <span className="badge badge-paused">Paused</span>}
           <span className="badge badge-chunks">{dir.chunkCount.toLocaleString()} chunks</span>
+          <button className="btn-remove" onClick={onRemove} title="Remove folder">×</button>
         </div>
       </div>
       <div className="folder-actions">
@@ -66,6 +68,15 @@ export function Dashboard() {
   const refreshDirs = useCallback(async () => {
     try { setDirs(await window.anamnesis.getDirs() as DirInfo[]); } catch { /* ignore */ }
   }, []);
+
+  const removeDir = useCallback(async (dirPath: string) => {
+    try {
+      const cfg = await window.anamnesis.getConfig() as { watchDirs?: string[] };
+      const updated = (cfg.watchDirs ?? []).filter(d => d !== dirPath);
+      await window.anamnesis.saveConfig({ watchDirs: updated });
+      await refreshDirs();
+    } catch { /* ignore */ }
+  }, [refreshDirs]);
 
   // Bootstrap
   useEffect(() => {
@@ -173,6 +184,7 @@ export function Dashboard() {
             onPause={() => { void window.anamnesis.pauseDir(d.path).then(refreshDirs); }}
             onResume={() => { void window.anamnesis.resumeDir(d.path).then(refreshDirs); }}
             onReindex={() => { void window.anamnesis.reindexDir(d.path); }}
+            onRemove={() => { void removeDir(d.path); }}
           />
         ))}
 
@@ -228,20 +240,27 @@ export function Dashboard() {
 
 function AddFolderRow({ onAdded }: { onAdded: () => void }) {
   const [path, setPath] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const browse = async () => {
     const selected = await window.anamnesis.openDirDialog();
     if (selected) setPath(selected);
   };
 
-  // Adding a folder means writing to config — for now show a note
-  // (full settings panel is Phase 4; this just picks the path)
   const add = async () => {
-    if (!path.trim()) return;
-    // TODO: POST /config with updated watchDirs
-    alert(`Folder selection is wired in Phase 4 settings UI.\nSelected: ${path}`);
-    setPath("");
-    onAdded();
+    const dir = path.trim();
+    if (!dir) return;
+    setBusy(true);
+    try {
+      const cfg = await window.anamnesis.getConfig() as { watchDirs?: string[] };
+      const current = cfg.watchDirs ?? [];
+      if (!current.includes(dir)) {
+        await window.anamnesis.saveConfig({ watchDirs: [...current, dir] });
+      }
+      setPath("");
+      onAdded();
+    } catch { /* ignore */ }
+    setBusy(false);
   };
 
   return (
@@ -254,7 +273,9 @@ function AddFolderRow({ onAdded }: { onAdded: () => void }) {
         onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
       />
       <button className="btn btn-icon" onClick={() => void browse()} title="Browse">📁</button>
-      <button className="btn btn-primary" onClick={() => void add()} disabled={!path.trim()}>Add</button>
+      <button className="btn btn-primary" onClick={() => void add()} disabled={!path.trim() || busy}>
+        {busy ? "…" : "Add"}
+      </button>
     </div>
   );
 }

@@ -4,12 +4,16 @@
   "description": "Anamnesis tray app — Electron desktop interface",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "tsc -skipLibCheck && node esbuild.renderer.mjs && electron-builder --dir",
+    "build": "tsc -skipLibCheck && node esbuild.renderer.mjs",
     "build:main": "tsc -skipLibCheck",
     "build:renderer": "node esbuild.renderer.mjs",
     "dev": "tsc -skipLibCheck --watch",
     "typecheck": "tsc -noEmit -skipLibCheck",
-    "start": "electron dist/main/index.js"
+    "start": "electron dist/main/index.js",
+    "package": "electron-builder --dir",
+    "package:linux": "electron-builder --linux --publish always",
+    "package:mac": "electron-builder --mac --publish always",
+    "package:win": "electron-builder --win --publish always"
   },
   "dependencies": {
     "@anamnesis/core": "workspace:*",
@@ -30,13 +34,34 @@
   "build": {
     "appId": "dev.anamnesis.app",
     "productName": "Anamnesis",
+    "asar": true,
     "files": ["dist/**/*", "renderer/**/*"],
     "extraResources": [
       { "from": "../core/dist/", "to": "core/", "filter": ["**/*"] },
+      { "from": ".deploy-core/node_modules/", "to": "core/node_modules/", "filter": ["**/*"] },
       { "from": "../../assets/", "to": "assets/", "filter": ["**/*"] }
     ],
-    "linux": { "target": ["AppImage", "deb"], "icon": "../../assets/AnamnesisLogo.ico" },
-    "mac": { "target": ["dmg"], "icon": "../../assets/AnamnesisLogo.ico" },
-    "win": { "target": ["nsis"], "icon": "../../assets/AnamnesisLogo.ico" }
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "../../assets/AnamnesisLogo.ico",
+      "category": "Utility"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "../../assets/AnamnesisLogo.ico",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "../../assets/AnamnesisLogo.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "releaseType": "draft"
+    }
   }
 }

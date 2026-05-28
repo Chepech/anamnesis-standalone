@@ -56,6 +56,9 @@ ipcMain.handle("mcp-stop", () => coreManager.stopMcp());
 
 ipcMain.handle("get-vectors", () => coreManager.getVectors());
 
+ipcMain.handle("get-config", () => coreManager.getConfig());
+ipcMain.handle("save-config", (_e, partial: unknown) => coreManager.saveConfig(partial));
+
 ipcMain.handle("open-dir-dialog", async () => {
   const { dialog } = await import("electron");
   const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });

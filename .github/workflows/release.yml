@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            pkg_script: package:linux
+          - os: macos-latest
+            pkg_script: package:mac
+          - os: windows-latest
+            pkg_script: package:win
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core daemon
+        run: pnpm --filter @anamnesis/core build
+
+      - name: Deploy core production dependencies
+        run: pnpm --filter @anamnesis/core deploy --legacy --prod packages/app/.deploy-core
+
+      - name: Rebuild sharp native binding in deploy
+        # pnpm deploy ignores build scripts; re-run sharp's install so the native
+        # binding lands in the deploy before electron-builder packages it
+        shell: bash
+        run: |
+          SHARP_PNPM=$(find packages/app/.deploy-core/node_modules/.pnpm -maxdepth 1 -name "sharp@*" -type d | head -1)
+          if [ -n "$SHARP_PNPM" ]; then
+            cd "$SHARP_PNPM/node_modules/sharp"
+            npm run install || true
+          fi
+
+      - name: Build Electron main
+        run: pnpm --filter @anamnesis/app build:main
+
+      - name: Build renderer
+        run: pnpm --filter @anamnesis/app build:renderer
+
+      - name: Package and publish
+        run: pnpm --filter @anamnesis/app ${{ matrix.pkg_script }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip code signing — add certs later for production
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          WIN_CSC_LINK: ''

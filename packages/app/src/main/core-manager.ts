@@ -55,9 +55,16 @@ export class CoreManager {
     const coreBin = this.resolveCoreBin();
     console.log("[Anamnesis] Spawning core daemon:", coreBin);
 
-    this.process = spawn(process.execPath, [coreBin, "--config", this.configPath], {
+    // In dev, native addons are compiled for system Node — use "node" from PATH.
+    // In packaged builds, Electron ships its own Node; ELECTRON_RUN_AS_NODE=1 runs
+    // the binary as plain Node so native modules built with electron-rebuild work.
+    const [bin, extraEnv]: [string, Record<string, string>] = app.isPackaged
+      ? [process.execPath, { ELECTRON_RUN_AS_NODE: "1" }]
+      : ["node", {}];
+
+    this.process = spawn(bin, [coreBin, "--config", this.configPath], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env },
+      env: { ...process.env, ...extraEnv },
     });
 
     this.process.stdout?.on("data", (data: Buffer) => process.stdout.write(`[core] ${data}`));
@@ -116,11 +123,22 @@ export class CoreManager {
     return data.nodes ?? [];
   }
 
+  // ── Config ────────────────────────────────────────────────────────────────
+
+  async getConfig(): Promise<unknown> {
+    return this.get("/config");
+  }
+
+  async saveConfig(partial: unknown): Promise<void> {
+    await this.post("/config", partial);
+  }
+
   // ── Private ───────────────────────────────────────────────────────────────
 
   private resolveCoreBin(): string {
     const packaged = path.join(process.resourcesPath ?? "", "core", "daemon.js");
-    const dev = path.join(app.getAppPath(), "..", "core", "dist", "daemon.js");
+    // __dirname is packages/app/dist/main — go up 3 levels to reach packages/
+    const dev = path.join(__dirname, "..", "..", "..", "core", "dist", "daemon.js");
     return require("fs").existsSync(packaged) ? packaged : dev;
   }
 

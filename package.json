@@ -9,10 +9,12 @@
     "build:app": "pnpm --filter @anamnesis/app build",
     "dev:core": "pnpm --filter @anamnesis/core dev",
     "dev:app": "pnpm --filter @anamnesis/app dev",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "deploy:core": "pnpm --filter @anamnesis/core deploy --legacy --prod packages/app/.deploy-core"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
-  }
+  },
+  "packageManager": "pnpm@10.28.2"
 }

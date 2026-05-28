@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Dashboard } from "./components/Dashboard.js";
 import { GraphPanel } from "./components/GraphPanel.js";
+import { Settings } from "./components/Settings.js";
 
-type Tab = "dashboard" | "graph";
+type Tab = "dashboard" | "graph" | "settings";
 
 interface StatusPayload {
   indexStatus?: { state?: string };
@@ -40,15 +41,18 @@ export function App() {
         <div className={`tab${tab === "graph" ? " active" : ""}`} onClick={() => setTab("graph")}>
           Vector Graph
         </div>
+        <div className={`tab${tab === "settings" ? " active" : ""}`} onClick={() => setTab("settings")}>
+          Settings
+        </div>
       </div>
 
-      {tab === "dashboard" ? (
+      {tab === "dashboard" && (
         <div className="scroll">
           <Dashboard />
         </div>
-      ) : (
-        <GraphPanel />
       )}
+      {tab === "graph" && <GraphPanel />}
+      {tab === "settings" && <Settings />}
     </div>
   );
 }

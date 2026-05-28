@@ -26,6 +26,10 @@ const api = {
   // Folder picker
   openDirDialog: () => ipcRenderer.invoke("open-dir-dialog") as Promise<string | null>,
 
+  // Config
+  getConfig: () => ipcRenderer.invoke("get-config"),
+  saveConfig: (partial: unknown) => ipcRenderer.invoke("save-config", partial),
+
   // Live status stream
   onStatusUpdate: (cb: (payload: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => cb(payload);

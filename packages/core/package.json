@@ -6,6 +6,7 @@
   "bin": {
     "anamnesis-core": "dist/daemon.js"
   },
+  "files": ["dist"],
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
