@@ -47,12 +47,12 @@
     ],
     "linux": {
       "target": ["AppImage", "deb"],
-      "icon": "../../assets/AnamnesisLogo.ico",
+      "icon": "../../assets/AnamnesisLogo.png",
       "category": "Utility"
     },
     "mac": {
       "target": ["dmg"],
-      "icon": "../../assets/AnamnesisLogo.ico",
+      "icon": "../../assets/AnamnesisLogo.png",
       "category": "public.app-category.utilities"
     },
     "win": {
