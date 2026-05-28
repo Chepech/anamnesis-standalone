@@ -38,6 +38,7 @@
   "build": {
     "appId": "dev.anamnesis.app",
     "productName": "Anamnesis",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "asar": true,
     "files": ["dist/**/*", "renderer/**/*"],
     "extraResources": [
