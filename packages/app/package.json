@@ -45,19 +45,17 @@
       { "from": ".deploy-core/node_modules/", "to": "core/node_modules/", "filter": ["**/*"] },
       { "from": "../../assets/", "to": "assets/", "filter": ["**/*"] }
     ],
+    "icon": "../../assets/AnamnesisLogo.png",
     "linux": {
       "target": ["AppImage", "deb"],
-      "icon": "../../assets/AnamnesisLogo.png",
       "category": "Utility"
     },
     "mac": {
       "target": ["dmg"],
-      "icon": "../../assets/AnamnesisLogo.png",
       "category": "public.app-category.utilities"
     },
     "win": {
-      "target": ["nsis"],
-      "icon": "../../assets/AnamnesisLogo.ico"
+      "target": ["nsis"]
     },
     "nsis": {
       "oneClick": false,
