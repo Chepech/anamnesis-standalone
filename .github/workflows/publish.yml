@@ -1,4 +1,4 @@
-name: Release
+name: Publish
 
 on:
   push:
@@ -9,7 +9,49 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  draft-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute changelog
+        id: changelog
+        shell: bash
+        run: |
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+          if [ -n "$PREVIOUS_TAG" ]; then
+            LOG=$(git log "${PREVIOUS_TAG}..HEAD" --oneline --no-merges)
+          else
+            LOG=$(git log --oneline --no-merges)
+          fi
+          echo "CHANGELOG<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$LOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Extract tag metadata
+        id: meta
+        run: echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          name: "Anamnesis ${{ steps.meta.outputs.tag }}"
+          body: |
+            <!-- Edit this section before publishing — it is pre-filled from git log. -->
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: draft-release
     strategy:
       fail-fast: false
       matrix:
@@ -43,14 +85,10 @@ jobs:
         run: pnpm --filter @anamnesis/core deploy --legacy --prod packages/app/.deploy-core
 
       - name: Remove circular pnpm self-reference from deploy
-        # pnpm deploy creates .pnpm/node_modules/@anamnesis/core pointing back to the
-        # deployed package itself — electron-builder fails to stat it on macOS/Linux
         shell: bash
         run: rm -rf packages/app/.deploy-core/node_modules/.pnpm/node_modules/
 
       - name: Rebuild sharp native binding in deploy
-        # pnpm deploy ignores build scripts; re-run sharp's install so the native
-        # binding lands in the deploy before electron-builder packages it
         shell: bash
         run: |
           SHARP_PNPM=$(find packages/app/.deploy-core/node_modules/.pnpm -maxdepth 1 -name "sharp@*" -type d | head -1)
@@ -65,10 +103,9 @@ jobs:
       - name: Build renderer
         run: pnpm --filter @anamnesis/app build:renderer
 
-      - name: Package and publish
+      - name: Package and upload to draft release
         run: pnpm --filter @anamnesis/app ${{ matrix.pkg_script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip code signing — add certs later for production
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           WIN_CSC_LINK: ''
