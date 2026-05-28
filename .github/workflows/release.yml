@@ -42,6 +42,12 @@ jobs:
       - name: Deploy core production dependencies
         run: pnpm --filter @anamnesis/core deploy --legacy --prod packages/app/.deploy-core
 
+      - name: Remove circular pnpm self-reference from deploy
+        # pnpm deploy creates .pnpm/node_modules/@anamnesis/core pointing back to the
+        # deployed package itself — electron-builder fails to stat it on macOS/Linux
+        shell: bash
+        run: rm -rf packages/app/.deploy-core/node_modules/.pnpm/node_modules/
+
       - name: Rebuild sharp native binding in deploy
         # pnpm deploy ignores build scripts; re-run sharp's install so the native
         # binding lands in the deploy before electron-builder packages it

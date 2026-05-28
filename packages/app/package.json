@@ -48,7 +48,8 @@
     "icon": "../../assets/AnamnesisLogo.png",
     "linux": {
       "target": ["AppImage", "deb"],
-      "category": "Utility"
+      "category": "Utility",
+      "maintainer": "Hector Nevarez <chepech@gmail.com>"
     },
     "mac": {
       "target": ["dmg"],
