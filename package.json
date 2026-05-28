@@ -1,0 +1,18 @@
+{
+  "name": "anamnesis-standalone",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Anamnesis — standalone semantic search daemon and desktop tray app",
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:core": "pnpm --filter @anamnesis/core build",
+    "build:app": "pnpm --filter @anamnesis/app build",
+    "dev:core": "pnpm --filter @anamnesis/core dev",
+    "dev:app": "pnpm --filter @anamnesis/app dev",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

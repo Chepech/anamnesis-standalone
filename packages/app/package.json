@@ -1,0 +1,33 @@
+{
+  "name": "@anamnesis/app",
+  "version": "0.1.0",
+  "description": "Anamnesis tray app — Electron desktop interface",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc -skipLibCheck && electron-builder --dir",
+    "dev": "tsc -skipLibCheck --watch",
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "start": "electron dist/main/index.js"
+  },
+  "dependencies": {
+    "@anamnesis/core": "workspace:*",
+    "electron-store": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^36.0.0",
+    "electron-builder": "^26.0.0",
+    "typescript": "5.7.2"
+  },
+  "build": {
+    "appId": "dev.anamnesis.app",
+    "productName": "Anamnesis",
+    "files": ["dist/**/*"],
+    "extraResources": [
+      { "from": "../core/dist/", "to": "core/", "filter": ["**/*"] }
+    ],
+    "linux": { "target": ["AppImage", "deb"] },
+    "mac": { "target": ["dmg"] },
+    "win": { "target": ["nsis"] }
+  }
+}

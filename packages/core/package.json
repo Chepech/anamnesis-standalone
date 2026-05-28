@@ -1,0 +1,38 @@
+{
+  "name": "@anamnesis/core",
+  "version": "0.1.0",
+  "description": "Anamnesis core — headless indexing daemon and MCP server",
+  "main": "dist/daemon.js",
+  "bin": {
+    "anamnesis-core": "dist/daemon.js"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "typecheck": "tsc -noEmit -skipLibCheck"
+  },
+  "dependencies": {
+    "@lancedb/lancedb": "^0.14.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@mozilla/readability": "^0.5.0",
+    "@xenova/transformers": "^2.17.2",
+    "apache-arrow": "^18.0.0",
+    "chokidar": "^4.0.3",
+    "gray-matter": "^4.0.3",
+    "jsdom": "^26.0.0",
+    "mammoth": "^1.9.0",
+    "minimatch": "^10.0.1",
+    "openai": "^6.34.0",
+    "pdf-parse": "^1.1.1",
+    "turndown": "^7.2.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.0.0",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/turndown": "^5.0.5",
+    "esbuild": "^0.24.0",
+    "typescript": "5.7.2"
+  }
+}
