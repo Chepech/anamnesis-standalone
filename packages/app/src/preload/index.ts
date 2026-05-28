@@ -1,13 +1,44 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld("anamnesisAPI", {
+const api = {
   getConfigPath: () => ipcRenderer.invoke("get-config-path") as Promise<string>,
-  reindex: () => ipcRenderer.invoke("core-reindex") as Promise<void>,
-  pause: () => ipcRenderer.invoke("core-pause") as Promise<void>,
-  resume: () => ipcRenderer.invoke("core-resume") as Promise<void>,
-  getStatus: () => ipcRenderer.invoke("core-status") as Promise<{ status: string }>,
-  onStatus: (cb: (payload: unknown) => void) => {
-    ipcRenderer.on("core-status-update", (_event, payload) => cb(payload));
-    return () => ipcRenderer.removeAllListeners("core-status-update");
+  getStatus: () => ipcRenderer.invoke("core-status"),
+
+  // Index controls (mirror plugin menu)
+  reindex: () => ipcRenderer.invoke("core-reindex"),
+  pause: () => ipcRenderer.invoke("core-pause"),
+  resume: () => ipcRenderer.invoke("core-resume"),
+  flush: () => ipcRenderer.invoke("core-flush"),
+
+  // Per-folder
+  getDirs: () => ipcRenderer.invoke("core-get-dirs"),
+  pauseDir: (dir: string) => ipcRenderer.invoke("core-pause-dir", dir),
+  resumeDir: (dir: string) => ipcRenderer.invoke("core-resume-dir", dir),
+  reindexDir: (dir: string) => ipcRenderer.invoke("core-reindex-dir", dir),
+
+  // MCP
+  startMcp: () => ipcRenderer.invoke("mcp-start"),
+  stopMcp: () => ipcRenderer.invoke("mcp-stop"),
+
+  // Graph
+  getVectors: () => ipcRenderer.invoke("get-vectors"),
+
+  // Folder picker
+  openDirDialog: () => ipcRenderer.invoke("open-dir-dialog") as Promise<string | null>,
+
+  // Live status stream
+  onStatusUpdate: (cb: (payload: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => cb(payload);
+    ipcRenderer.on("core-status-update", handler);
+    return () => ipcRenderer.removeListener("core-status-update", handler);
   },
-});
+};
+
+contextBridge.exposeInMainWorld("anamnesis", api);
+
+// Type declaration for renderer consumption
+declare global {
+  interface Window {
+    anamnesis: typeof api;
+  }
+}

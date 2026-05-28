@@ -1,6 +1,6 @@
 import { Tray, Menu, nativeImage, app } from "electron";
 import path from "path";
-import type { CoreManager, CoreStatus, CoreStatusPayload } from "./core-manager.js";
+import type { CoreManager, CoreStatusPayload } from "./core-manager.js";
 import type { WindowsManager } from "./windows.js";
 
 export class TrayManager {
@@ -15,16 +15,19 @@ export class TrayManager {
   }
 
   create(): void {
-    const iconPath = this.iconPath("idle");
+    const iconPath = this.resolveIcon();
     const icon = nativeImage.createFromPath(iconPath);
-    this.tray = new Tray(icon);
+
+    this.tray = new Tray(process.platform === "darwin" ? icon.resize({ width: 18, height: 18 }) : icon);
     this.tray.setToolTip("Anamnesis");
-    this.tray.on("click", () => this.windowsManager.openSettings());
+
+    // Left-click opens control panel
+    this.tray.on("click", () => this.windowsManager.openPanel());
+
     this.updateMenu(this.lastPayload);
 
     this.coreManager.onStatus((payload) => {
       this.lastPayload = payload;
-      this.updateTrayIcon(payload.status);
       this.updateMenu(payload);
     });
   }
@@ -34,64 +37,96 @@ export class TrayManager {
     this.tray = null;
   }
 
-  private updateTrayIcon(status: CoreStatus): void {
-    if (!this.tray) return;
-    const iconName = status === "running" ? "idle"
-      : status === "starting" ? "indexing"
-      : status === "error" ? "error"
-      : "stopped";
-    const icon = nativeImage.createFromPath(this.iconPath(iconName));
-    this.tray.setImage(icon);
-  }
+  // ── Menu — mirrors the Obsidian plugin's showStatusMenu exactly ───────────
 
   private updateMenu(payload: CoreStatusPayload): void {
     if (!this.tray) return;
 
-    const statusLabel = this.statusLabel(payload);
-    const mcpLabel = payload.mcpPort
-      ? `MCP: ${payload.mcpStatus === "running" ? `Running on :${payload.mcpPort}` : "Stopped"}`
-      : "MCP: Not configured";
+    const idx = payload.indexStatus as { state?: string; count?: number; message?: string } | undefined;
+    const state = idx?.state ?? "idle";
+    const mcpRunning = payload.mcpStatus === "running";
+    const items: Electron.MenuItemConstructorOptions[] = [];
 
-    const isIndexing = (payload.indexStatus as { state?: string } | undefined)?.state === "indexing";
-    const isPaused = (payload.indexStatus as { state?: string } | undefined)?.state === "paused";
+    // ── Index state-dependent controls ───────────────────────────────────────
 
-    const menu = Menu.buildFromTemplate([
-      { label: "Anamnesis", enabled: false },
-      { type: "separator" },
-      { label: statusLabel, enabled: false },
-      { label: mcpLabel, enabled: false },
-      { type: "separator" },
-      { label: "Open Settings", click: () => this.windowsManager.openSettings() },
-      { type: "separator" },
-      ...(isIndexing
-        ? [{ label: "Pause Indexing", click: () => void this.coreManager.pause() }]
-        : isPaused
-          ? [{ label: "Resume Indexing", click: () => void this.coreManager.resume() }]
-          : []),
-      { label: "Re-index Now", click: () => void this.coreManager.reindex() },
-      { type: "separator" } as Electron.MenuItemConstructorOptions,
-      { label: "Quit", click: () => app.quit() },
-    ]);
+    if (state === "indexing") {
+      items.push(
+        { label: "Pause indexing", icon: this.icon("pause"), click: () => void this.coreManager.pause() },
+        { label: "Cancel indexing", icon: this.icon("x"), click: () => void this.coreManager.reindex() }
+      );
+    } else if (state === "paused") {
+      items.push(
+        { label: "Resume indexing", icon: this.icon("play"), click: () => void this.coreManager.resume() },
+        { label: "Cancel indexing", icon: this.icon("x"), click: () => void this.coreManager.pause() }
+      );
+    } else if (state === "error") {
+      items.push(
+        { label: `Error: ${String(idx?.message ?? "")}`, enabled: false },
+        { type: "separator" },
+        { label: "Re-index vault", icon: this.icon("database"), click: () => void this.coreManager.reindex() }
+      );
+    } else if (state === "queued") {
+      const count = idx?.count ?? 0;
+      items.push(
+        { label: `${count} file${count === 1 ? "" : "s"} queued — indexing soon`, enabled: false },
+        { type: "separator" },
+        { label: "Re-index vault now", icon: this.icon("database"), click: () => void this.coreManager.reindex() }
+      );
+    } else {
+      // idle
+      items.push(
+        { label: "Re-index vault", icon: this.icon("database"), click: () => void this.coreManager.reindex() }
+      );
+    }
 
-    this.tray.setContextMenu(menu);
+    // ── Always available ──────────────────────────────────────────────────────
+
+    items.push(
+      { type: "separator" },
+      { label: "Open control panel", icon: this.icon("layout-dashboard"), click: () => this.windowsManager.openPanel() }
+    );
+
+    // ── MCP section ───────────────────────────────────────────────────────────
+
+    items.push({ type: "separator" });
+
+    if (mcpRunning) {
+      items.push(
+        { label: `MCP: port ${payload.mcpPort ?? ""}`, icon: this.icon("server"), enabled: false },
+        { label: "Stop MCP server", icon: this.icon("square"), click: () => void this.coreManager.stopMcp() }
+      );
+    } else if (payload.mcpStatus !== undefined) {
+      items.push(
+        { label: "Start MCP server", icon: this.icon("play"), click: () => void this.coreManager.startMcp() }
+      );
+    } else {
+      items.push({ label: "MCP: Disabled", icon: this.icon("server"), enabled: false });
+    }
+
+    items.push(
+      { type: "separator" },
+      { label: "Quit", click: () => app.quit() }
+    );
+
+    this.tray.setContextMenu(Menu.buildFromTemplate(items));
   }
 
-  private statusLabel(payload: CoreStatusPayload): string {
-    if (payload.status === "stopped") return "Status: Stopped";
-    if (payload.status === "starting") return "Status: Starting...";
-    if (payload.status === "error") return `Status: Error${payload.error ? ` — ${payload.error}` : ""}`;
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-    const idx = payload.indexStatus as { state?: string; current?: number; total?: number } | undefined;
-    if (idx?.state === "indexing") return `Indexing ${idx.current ?? 0} / ${idx.total ?? 0}`;
-    if (idx?.state === "paused") return "Status: Paused";
-    if (idx?.state === "queued") return "Status: Changes queued";
-    if (idx?.state === "error") return "Status: Index error";
-    return "Status: Running";
+  private resolveIcon(): string {
+    // Prefer assets/ in the project root (works in dev and packaged)
+    const candidates = [
+      path.join(__dirname, "..", "..", "..", "..", "assets", "AnamnesisLogo.ico"),
+      path.join(process.resourcesPath ?? "", "assets", "AnamnesisLogo.ico"),
+    ];
+    for (const p of candidates) {
+      if (require("fs").existsSync(p)) return p;
+    }
+    return candidates[0]; // fallback — Electron handles missing gracefully
   }
 
-  private iconPath(state: string): string {
-    // TODO: replace with actual icon assets
-    const assetDir = path.join(__dirname, "..", "..", "assets", "icons");
-    return path.join(assetDir, `${state}.png`);
+  private icon(_name: string): Electron.NativeImage | undefined {
+    // Native menu icons on macOS require template images; skip on other platforms
+    return undefined;
   }
 }

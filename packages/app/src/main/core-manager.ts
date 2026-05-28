@@ -5,18 +5,26 @@ import { app } from "electron";
 
 export type CoreStatus = "stopped" | "starting" | "running" | "error";
 
+export interface DirInfo {
+  path: string;
+  paused: boolean;
+  chunkCount: number;
+}
+
 export interface CoreStatusPayload {
   status: CoreStatus;
   indexStatus?: unknown;
   mcpStatus?: string;
   mcpPort?: number;
+  chunkCount?: number;
   model?: string;
+  embeddingProvider?: string;
+  dimension?: number;
+  watchDirs?: string[];
   error?: string;
 }
 
 type StatusListener = (payload: CoreStatusPayload) => void;
-
-const MGMT_PORT_OFFSET = 1; // core mgmt runs on mcpPort + 1 (default 8869)
 
 export class CoreManager {
   private process: ChildProcess | null = null;
@@ -25,6 +33,7 @@ export class CoreManager {
   private configPath: string;
   private mcpPort: number;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private lastPayload: CoreStatusPayload = { status: "stopped" };
 
   constructor(configPath: string, mcpPort = 8868) {
     this.configPath = configPath;
@@ -32,6 +41,7 @@ export class CoreManager {
   }
 
   get status(): CoreStatus { return this._status; }
+  get payload(): CoreStatusPayload { return this.lastPayload; }
 
   onStatus(listener: StatusListener): () => void {
     this.listeners.add(listener);
@@ -60,7 +70,6 @@ export class CoreManager {
       this.stopPolling();
     });
 
-    // Poll management API until responsive
     await this.waitForReady();
     this.startPolling();
   }
@@ -77,46 +86,61 @@ export class CoreManager {
     this._setStatus("stopped");
   }
 
-  async reindex(): Promise<void> {
-    await this.mgmtPost("/reindex");
+  // ── Index controls ────────────────────────────────────────────────────────
+
+  async reindex(): Promise<void> { await this.post("/reindex"); }
+  async pause(): Promise<void> { await this.post("/pause"); }
+  async resume(): Promise<void> { await this.post("/resume"); }
+  async flush(): Promise<void> { await this.post("/flush"); }
+
+  // ── Per-folder ────────────────────────────────────────────────────────────
+
+  async getDirs(): Promise<DirInfo[]> {
+    const data = await this.get<{ dirs: DirInfo[] }>("/dirs");
+    return data.dirs ?? [];
   }
 
-  async pause(): Promise<void> {
-    await this.mgmtPost("/pause");
-  }
+  async pauseDir(dir: string): Promise<void> { await this.post("/dirs/pause", { dir }); }
+  async resumeDir(dir: string): Promise<void> { await this.post("/dirs/resume", { dir }); }
+  async reindexDir(dir: string): Promise<void> { await this.post("/dirs/reindex", { dir }); }
 
-  async resume(): Promise<void> {
-    await this.mgmtPost("/resume");
+  // ── MCP ───────────────────────────────────────────────────────────────────
+
+  async startMcp(): Promise<void> { await this.post("/mcp/start"); }
+  async stopMcp(): Promise<void> { await this.post("/mcp/stop"); }
+
+  // ── Graph vectors ─────────────────────────────────────────────────────────
+
+  async getVectors(): Promise<{ id: string; vector: number[]; text: string }[]> {
+    const data = await this.get<{ nodes: { id: string; vector: number[]; text: string }[] }>("/vectors");
+    return data.nodes ?? [];
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
 
   private resolveCoreBin(): string {
-    // In packaged app: resources/core/daemon.js; in dev: sibling package dist
     const packaged = path.join(process.resourcesPath ?? "", "core", "daemon.js");
     const dev = path.join(app.getAppPath(), "..", "core", "dist", "daemon.js");
     return require("fs").existsSync(packaged) ? packaged : dev;
   }
 
+  private get mgmtPort(): number { return this.mcpPort + 1; }
+
   private async waitForReady(timeoutMs = 30_000): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      try {
-        await this.fetchStatus();
-        this._setStatus("running");
-        return;
-      } catch {
-        await new Promise((r) => setTimeout(r, 500));
-      }
+      try { await this.get("/status"); this._setStatus("running"); return; }
+      catch { await new Promise((r) => setTimeout(r, 500)); }
     }
     throw new Error("Core daemon did not become ready in time");
   }
 
   private startPolling(): void {
     this.pollTimer = setInterval(() => {
-      void this.fetchStatus().then((payload) => {
+      void this.get<CoreStatusPayload>("/status").then((payload) => {
+        this.lastPayload = { ...payload, status: "running" };
         if (this._status !== "running") this._setStatus("running");
-        for (const l of this.listeners) l({ status: "running", ...payload });
+        for (const l of this.listeners) l(this.lastPayload);
       }).catch(() => {
         if (this._status === "running") this._setStatus("error", "Lost connection to core");
       });
@@ -127,33 +151,35 @@ export class CoreManager {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
-  private async fetchStatus(): Promise<Omit<CoreStatusPayload, "status">> {
+  private get<T>(endpoint: string): Promise<T> {
     return new Promise((resolve, reject) => {
-      const req = http.get(`http://127.0.0.1:${this.mcpPort + MGMT_PORT_OFFSET}/status`, (res) => {
+      const req = http.get(`http://127.0.0.1:${this.mgmtPort}${endpoint}`, (res) => {
         let body = "";
-        res.on("data", (chunk: Buffer) => { body += chunk; });
-        res.on("end", () => {
-          try { resolve(JSON.parse(body) as Omit<CoreStatusPayload, "status">); } catch { reject(new Error("bad json")); }
-        });
+        res.on("data", (c: Buffer) => { body += c; });
+        res.on("end", () => { try { resolve(JSON.parse(body) as T); } catch { reject(new Error("bad json")); } });
       });
       req.on("error", reject);
-      req.setTimeout(2_000, () => req.destroy());
+      req.setTimeout(5_000, () => req.destroy());
     });
   }
 
-  private async mgmtPost(endpoint: string): Promise<void> {
+  private post(endpoint: string, data?: unknown): Promise<void> {
     return new Promise((resolve, reject) => {
+      const body = data ? JSON.stringify(data) : "";
       const req = http.request(
-        { hostname: "127.0.0.1", port: this.mcpPort + MGMT_PORT_OFFSET, path: endpoint, method: "POST" },
+        { hostname: "127.0.0.1", port: this.mgmtPort, path: endpoint, method: "POST",
+          headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
         (res) => { res.resume(); res.on("end", resolve); }
       );
       req.on("error", reject);
+      if (body) req.write(body);
       req.end();
     });
   }
 
   private _setStatus(status: CoreStatus, error?: string): void {
     this._status = status;
-    for (const l of this.listeners) l({ status, error });
+    this.lastPayload = { ...this.lastPayload, status, error };
+    for (const l of this.listeners) l(this.lastPayload);
   }
 }

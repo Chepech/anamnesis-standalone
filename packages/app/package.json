@@ -4,17 +4,25 @@
   "description": "Anamnesis tray app — Electron desktop interface",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "tsc -skipLibCheck && electron-builder --dir",
+    "build": "tsc -skipLibCheck && node esbuild.renderer.mjs && electron-builder --dir",
+    "build:main": "tsc -skipLibCheck",
+    "build:renderer": "node esbuild.renderer.mjs",
     "dev": "tsc -skipLibCheck --watch",
     "typecheck": "tsc -noEmit -skipLibCheck",
     "start": "electron dist/main/index.js"
   },
   "dependencies": {
     "@anamnesis/core": "workspace:*",
-    "electron-store": "^10.0.1"
+    "electron-store": "^10.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "umap-js": "^1.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.5",
+    "esbuild": "^0.24.0",
     "electron": "^36.0.0",
     "electron-builder": "^26.0.0",
     "typescript": "5.7.2"
@@ -22,12 +30,13 @@
   "build": {
     "appId": "dev.anamnesis.app",
     "productName": "Anamnesis",
-    "files": ["dist/**/*"],
+    "files": ["dist/**/*", "renderer/**/*"],
     "extraResources": [
-      { "from": "../core/dist/", "to": "core/", "filter": ["**/*"] }
+      { "from": "../core/dist/", "to": "core/", "filter": ["**/*"] },
+      { "from": "../../assets/", "to": "assets/", "filter": ["**/*"] }
     ],
-    "linux": { "target": ["AppImage", "deb"] },
-    "mac": { "target": ["dmg"] },
-    "win": { "target": ["nsis"] }
+    "linux": { "target": ["AppImage", "deb"], "icon": "../../assets/AnamnesisLogo.ico" },
+    "mac": { "target": ["dmg"], "icon": "../../assets/AnamnesisLogo.ico" },
+    "win": { "target": ["nsis"], "icon": "../../assets/AnamnesisLogo.ico" }
   }
 }

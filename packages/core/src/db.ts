@@ -102,6 +102,21 @@ export class VectorDB {
     return table.countRows();
   }
 
+  async getChunkCountsByDir(): Promise<Map<string, number>> {
+    if (!this.db) return new Map();
+    const tableNames = await this.db.tableNames();
+    if (!tableNames.includes(CHUNKS_TABLE)) return new Map();
+    const table = await this.db.openTable(CHUNKS_TABLE);
+    const rows = await table.query().select(["file_path"]).toArray();
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      const fp = (row as { file_path: string }).file_path;
+      if (!fp) continue;
+      counts.set(fp, (counts.get(fp) ?? 0) + 1);
+    }
+    return counts;
+  }
+
   async getAllChunks(): Promise<ChunkRecord[]> {
     if (!this.db) throw new Error("DB not connected");
     const table = await this.db.openTable(CHUNKS_TABLE);

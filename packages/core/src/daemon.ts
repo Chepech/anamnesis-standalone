@@ -123,6 +123,26 @@ function broadcastStatus(status: IndexStatus): void {
   }
 }
 
+function collectFiles(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) results.push(...collectFiles(full));
+      else if (entry.isFile()) results.push(full);
+    }
+  } catch { /* unreadable dir */ }
+  return results;
+}
+
+function readBody(req: http.IncomingMessage, cb: (body: unknown) => void): void {
+  let raw = "";
+  req.on("data", (chunk: Buffer) => { raw += chunk.toString(); });
+  req.on("end", () => {
+    try { cb(raw ? (JSON.parse(raw) as unknown) : {}); } catch { cb({}); }
+  });
+}
+
 function startMgmtServer(port: number): http.Server {
   const server = http.createServer((req, res) => {
     res.setHeader("Content-Type", "application/json");
@@ -134,13 +154,20 @@ function startMgmtServer(port: number): http.Server {
     const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
 
     if (req.method === "GET" && url.pathname === "/status") {
-      res.end(JSON.stringify({
-        indexStatus: currentStatus,
-        mcpStatus: mcp.status,
-        mcpPort: mcp.port,
-        chunkCount: 0, // TODO: cache this
-        model: provider.name,
-      }));
+      void db.countRows().then((chunkCount) => {
+        res.end(JSON.stringify({
+          indexStatus: currentStatus,
+          mcpStatus: mcp.status,
+          mcpPort: mcp.port,
+          chunkCount,
+          model: provider.name,
+          embeddingProvider: config.embeddingProvider,
+          dimension: provider.dimension,
+          watchDirs: config.watchDirs,
+        }));
+      }).catch(() => {
+        res.end(JSON.stringify({ indexStatus: currentStatus, mcpStatus: mcp.status, mcpPort: mcp.port, chunkCount: 0, model: provider.name }));
+      });
       return;
     }
 
@@ -152,12 +179,14 @@ function startMgmtServer(port: number): http.Server {
 
     if (req.method === "POST" && url.pathname === "/pause") {
       indexer.pause();
+      watcher.pauseAll();
       res.end(JSON.stringify({ ok: true }));
       return;
     }
 
     if (req.method === "POST" && url.pathname === "/resume") {
       indexer.resume();
+      watcher.resumeAll();
       res.end(JSON.stringify({ ok: true }));
       return;
     }
@@ -168,17 +197,88 @@ function startMgmtServer(port: number): http.Server {
       return;
     }
 
+    // ── Per-folder endpoints ──────────────────────────────────────────────────
+
+    if (req.method === "GET" && url.pathname === "/dirs") {
+      void db.getChunkCountsByDir().then((fileCounts) => {
+        const dirChunks = new Map<string, number>();
+        for (const [fp, count] of fileCounts) {
+          for (const dir of config.watchDirs) {
+            if (fp.startsWith(dir)) {
+              dirChunks.set(dir, (dirChunks.get(dir) ?? 0) + count);
+              break;
+            }
+          }
+        }
+        const dirs = config.watchDirs.map((d) => ({
+          path: d,
+          paused: watcher.isDirPaused(d),
+          chunkCount: dirChunks.get(d) ?? 0,
+        }));
+        res.end(JSON.stringify({ dirs }));
+      }).catch(() => {
+        const dirs = config.watchDirs.map((d) => ({ path: d, paused: watcher.isDirPaused(d), chunkCount: 0 }));
+        res.end(JSON.stringify({ dirs }));
+      });
+      return;
+    }
+
+    if (req.method === "POST" && (url.pathname === "/dirs/pause" || url.pathname === "/dirs/resume" || url.pathname === "/dirs/reindex")) {
+      readBody(req, (body) => {
+        const { dir } = (body as { dir?: string }) ?? {};
+        if (!dir) { res.writeHead(400); res.end(JSON.stringify({ error: "dir required" })); return; }
+        if (url.pathname === "/dirs/pause") {
+          watcher.pauseDir(dir);
+          res.end(JSON.stringify({ ok: true }));
+        } else if (url.pathname === "/dirs/resume") {
+          watcher.resumeDir(dir);
+          res.end(JSON.stringify({ ok: true }));
+        } else {
+          // reindex a specific directory
+          const files = collectFiles(dir).filter((fp) => indexer.isIndexable(fp));
+          void indexer.indexFiles(files)
+            .then(() => res.end(JSON.stringify({ ok: true })))
+            .catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
+        }
+      });
+      return;
+    }
+
+    // ── Vector graph endpoint ─────────────────────────────────────────────────
+
+    if (req.method === "GET" && url.pathname === "/vectors") {
+      void db.getAllChunks().then((chunks) => {
+        // Dedupe to one chunk per file (first chunk, has representative vector)
+        const seen = new Set<string>();
+        const nodes = chunks
+          .filter((c) => { if (seen.has(c.file_path)) return false; seen.add(c.file_path); return true; })
+          .map((c) => ({ id: c.file_path, vector: Array.from(c.vector as unknown as ArrayLike<number>), text: c.text?.slice(0, 120) ?? "" }));
+        res.end(JSON.stringify({ nodes }));
+      }).catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
+      return;
+    }
+
+    // ── MCP start/stop ────────────────────────────────────────────────────────
+
+    if (req.method === "POST" && url.pathname === "/mcp/start") {
+      void mcp.start(config.mcpPort).then(() => res.end(JSON.stringify({ ok: true }))).catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/mcp/stop") {
+      void mcp.stop().then(() => res.end(JSON.stringify({ ok: true }))).catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/config") {
       res.end(JSON.stringify(config));
       return;
     }
 
     if (req.method === "POST" && url.pathname === "/config") {
-      let body = "";
-      req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-      req.on("end", () => {
+      readBody(req, (body) => {
         try {
-          const updated = JSON.parse(body) as Partial<AnamnesisConfig>;
+          const updated = body as Partial<AnamnesisConfig>;
           config = { ...config, ...updated };
           saveConfig(config, configPath);
           res.end(JSON.stringify({ ok: true }));

@@ -11,6 +11,7 @@ export class FileWatcher {
   private pendingModify = new Set<string>();
   private pendingDelete = new Set<string>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private pausedDirs = new Set<string>();
 
   constructor(indexer: IndexingEngine, config: AnamnesisConfig) {
     this.indexer = indexer;
@@ -19,6 +20,37 @@ export class FileWatcher {
 
   get isRunning(): boolean {
     return this.watcher !== null;
+  }
+
+  pauseDir(dir: string): void {
+    this.pausedDirs.add(this.normalizeDir(dir));
+  }
+
+  resumeDir(dir: string): void {
+    this.pausedDirs.delete(this.normalizeDir(dir));
+  }
+
+  pauseAll(): void {
+    for (const d of this.config.watchDirs) this.pausedDirs.add(this.normalizeDir(d));
+  }
+
+  resumeAll(): void {
+    this.pausedDirs.clear();
+  }
+
+  isDirPaused(dir: string): boolean {
+    return this.pausedDirs.has(this.normalizeDir(dir));
+  }
+
+  private normalizeDir(dir: string): string {
+    return dir.endsWith(path.sep) ? dir : dir + path.sep;
+  }
+
+  private isPathPaused(filePath: string): boolean {
+    for (const d of this.pausedDirs) {
+      if (filePath.startsWith(d)) return true;
+    }
+    return false;
   }
 
   start(): void {
@@ -37,9 +69,9 @@ export class FileWatcher {
     });
 
     this.watcher
-      .on("add", (filePath) => { if (this.indexer.isIndexable(filePath)) this.enqueueModify(filePath); })
-      .on("change", (filePath) => { if (this.indexer.isIndexable(filePath)) this.enqueueModify(filePath); })
-      .on("unlink", (filePath) => { if (this.indexer.isIndexable(filePath)) this.enqueueDelete(filePath); })
+      .on("add", (filePath) => { if (this.indexer.isIndexable(filePath) && !this.isPathPaused(filePath)) this.enqueueModify(filePath); })
+      .on("change", (filePath) => { if (this.indexer.isIndexable(filePath) && !this.isPathPaused(filePath)) this.enqueueModify(filePath); })
+      .on("unlink", (filePath) => { if (this.indexer.isIndexable(filePath) && !this.isPathPaused(filePath)) this.enqueueDelete(filePath); })
       .on("addDir", () => {})
       .on("unlinkDir", () => {})
       .on("error", (err) => console.error("[Anamnesis] Watcher error:", err));
