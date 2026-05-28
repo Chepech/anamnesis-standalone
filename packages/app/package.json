@@ -2,6 +2,10 @@
   "name": "@anamnesis/app",
   "version": "0.1.0",
   "description": "Anamnesis tray app — Electron desktop interface",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chepech/anamnesis-standalone.git"
+  },
   "main": "dist/main/index.js",
   "scripts": {
     "build": "tsc -skipLibCheck && node esbuild.renderer.mjs",
