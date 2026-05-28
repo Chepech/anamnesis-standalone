@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           CURRENT_TAG="${GITHUB_REF_NAME}"
-          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1 || true)
           if [ -n "$PREVIOUS_TAG" ]; then
             LOG=$(git log "${PREVIOUS_TAG}..HEAD" --oneline --no-merges)
           else
