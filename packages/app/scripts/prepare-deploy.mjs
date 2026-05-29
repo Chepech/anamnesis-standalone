@@ -57,10 +57,10 @@ execSync("npm install --omit=dev --legacy-peer-deps --ignore-scripts=false", {
   stdio: "inherit",
 });
 
-// ── 4. Remove onnxruntime-web (browser/WASM build — not used in Node.js) ─────
-removeDir(join(nodeModulesDir, "onnxruntime-web"), "onnxruntime-web (browser-only)");
-
-// ── 5. Strip off-platform onnxruntime-node binaries ──────────────────────────
+// ── 4. Strip off-platform onnxruntime-node binaries ──────────────────────────
+// NOTE: onnxruntime-web is intentionally kept.  Under ELECTRON_RUN_AS_NODE=1
+// onnxruntime-node may fail to load (ABI mismatch) and transformers falls back
+// to onnxruntime-web.  Removing it causes the same fatal Worker crash as sharp.
 //   onnxruntime-node ships win32/linux/darwin in one package.
 //   Keeping only the target platform saves ~60 MB.
 const onnxBinRoot = join(nodeModulesDir, "onnxruntime-node", "bin", "napi-v3");
@@ -72,7 +72,7 @@ if (existsSync(onnxBinRoot)) {
   }
 }
 
-// ── 6. Cross-platform sanity warning ─────────────────────────────────────────
+// ── 5. Cross-platform sanity warning ─────────────────────────────────────────
 // NOTE: sharp is intentionally kept.  @xenova/transformers imports it at Worker
 // initialisation time under ELECTRON_RUN_AS_NODE=1; the dynamic import() failure
 // is NOT caught by its try/catch in that context and crashes the daemon fatally.
