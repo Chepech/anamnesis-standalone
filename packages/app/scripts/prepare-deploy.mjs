@@ -72,17 +72,10 @@ if (existsSync(onnxBinRoot)) {
   }
 }
 
-// ── 6. Remove sharp (image processing — not needed for text-only embeddings) ──
-//   @xenova/transformers requires sharp for image pipelines but falls back
-//   gracefully when it is absent.  Text feature-extraction works fine without it.
-//   Remove it to save ~17 MB and its transitive bare-* / tar-fs dependencies.
-removeDir(join(nodeModulesDir, "sharp"), "sharp (image processing, not needed)");
-// Remove sharp's transitive deps that nothing else uses
-for (const pkg of ["tar-fs", "tar-stream", "bare-fs", "bare-os", "bare-url", "pump"]) {
-  removeDir(join(nodeModulesDir, pkg), `${pkg} (sharp transitive dep)`);
-}
-
-// ── 7. Cross-platform sanity warning ─────────────────────────────────────────
+// ── 6. Cross-platform sanity warning ─────────────────────────────────────────
+// NOTE: sharp is intentionally kept.  @xenova/transformers imports it at Worker
+// initialisation time under ELECTRON_RUN_AS_NODE=1; the dynamic import() failure
+// is NOT caught by its try/catch in that context and crashes the daemon fatally.
 if (targetPlatform === "win32" && process.platform !== "win32") {
   console.warn(
     "\n⚠  WARNING: Building Windows installer on a non-Windows host.\n" +
