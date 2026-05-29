@@ -1,6 +1,7 @@
 import { app, ipcMain, BrowserWindow } from "electron";
 import path from "path";
 import os from "os";
+import fs from "fs";
 import { CoreManager } from "./core-manager.js";
 import { TrayManager } from "./tray.js";
 import { WindowsManager } from "./windows.js";
@@ -8,6 +9,11 @@ import { WindowsManager } from "./windows.js";
 const configPath = app.isPackaged
   ? path.join(app.getPath("userData"), "config.json")
   : path.join(os.homedir(), ".config", "anamnesis-dev", "config.json");
+
+const logPath = path.join(
+  app.isPackaged ? app.getPath("logs") : path.join(os.homedir(), ".config", "anamnesis-dev", "logs"),
+  "anamnesis.log"
+);
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); process.exit(0); }
@@ -19,7 +25,7 @@ let windowsManager: WindowsManager;
 app.on("ready", async () => {
   app.dock?.hide();
 
-  coreManager = new CoreManager(configPath);
+  coreManager = new CoreManager(configPath, logPath);
   windowsManager = new WindowsManager();
   trayManager = new TrayManager(coreManager, windowsManager);
 
@@ -56,8 +62,35 @@ ipcMain.handle("mcp-stop", () => coreManager.stopMcp());
 
 ipcMain.handle("get-vectors", () => coreManager.getVectors());
 
-ipcMain.handle("get-config", () => coreManager.getConfig());
-ipcMain.handle("save-config", (_e, partial: unknown) => coreManager.saveConfig(partial));
+ipcMain.handle("get-config", async () => {
+  try {
+    return await coreManager.getConfig();
+  } catch {
+    // Daemon not ready yet — read config file directly so Settings/AddFolder work during startup
+    try { return JSON.parse(fs.readFileSync(configPath, "utf-8")) as unknown; } catch { return {}; }
+  }
+});
+
+ipcMain.handle("save-config", async (_e, partial: unknown) => {
+  try {
+    await coreManager.saveConfig(partial);
+  } catch {
+    // Daemon not running — write directly so changes persist and are picked up on next start
+    let existing: Record<string, unknown> = {};
+    try { existing = JSON.parse(fs.readFileSync(configPath, "utf-8")) as Record<string, unknown>; } catch { /* first run */ }
+    const updated = { ...existing, ...(partial as Record<string, unknown>) };
+    const dir = path.dirname(configPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(updated, null, 2), "utf-8");
+  }
+});
+
+ipcMain.handle("get-log-path", () => logPath);
+
+ipcMain.handle("open-log-file", async () => {
+  const { shell } = await import("electron");
+  await shell.openPath(logPath);
+});
 
 ipcMain.handle("open-dir-dialog", async () => {
   const { dialog } = await import("electron");

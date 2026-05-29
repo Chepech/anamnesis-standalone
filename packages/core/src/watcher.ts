@@ -53,6 +53,13 @@ export class FileWatcher {
     return false;
   }
 
+  addDir(dir: string): void {
+    if (this.watcher) {
+      this.watcher.add(dir);
+      console.debug("[Anamnesis] File watcher: added dir", dir);
+    }
+  }
+
   start(): void {
     if (this.watcher) return;
 

@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "child_process";
 import path from "path";
+import fs from "fs";
 import http from "http";
 import { app } from "electron";
 
@@ -34,9 +35,12 @@ export class CoreManager {
   private mcpPort: number;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private lastPayload: CoreStatusPayload = { status: "stopped" };
+  private logStream: fs.WriteStream | null = null;
+  readonly logPath: string;
 
-  constructor(configPath: string, mcpPort = 8868) {
+  constructor(configPath: string, logPath: string, mcpPort = 8868) {
     this.configPath = configPath;
+    this.logPath = logPath;
     this.mcpPort = mcpPort;
   }
 
@@ -52,8 +56,15 @@ export class CoreManager {
     if (this.process) return;
     this._setStatus("starting");
 
+    const logDir = path.dirname(this.logPath);
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    this.logStream = fs.createWriteStream(this.logPath, { flags: "a" });
+    this.logStream.write(`\n--- Session started ${new Date().toISOString()} ---\n`);
+
     const coreBin = this.resolveCoreBin();
-    console.log("[Anamnesis] Spawning core daemon:", coreBin);
+    const msg = `[Anamnesis] Spawning core daemon: ${coreBin}\n`;
+    console.log(msg.trimEnd());
+    this.logStream.write(msg);
 
     // In dev, native addons are compiled for system Node — use "node" from PATH.
     // In packaged builds, Electron ships its own Node; ELECTRON_RUN_AS_NODE=1 runs
@@ -67,11 +78,21 @@ export class CoreManager {
       env: { ...process.env, ...extraEnv },
     });
 
-    this.process.stdout?.on("data", (data: Buffer) => process.stdout.write(`[core] ${data}`));
-    this.process.stderr?.on("data", (data: Buffer) => process.stderr.write(`[core] ${data}`));
+    this.process.stdout?.on("data", (data: Buffer) => {
+      process.stdout.write(`[core] ${data}`);
+      this.logStream?.write(data);
+    });
+    this.process.stderr?.on("data", (data: Buffer) => {
+      process.stderr.write(`[core] ${data}`);
+      this.logStream?.write(data);
+    });
 
     this.process.on("exit", (code) => {
-      console.log(`[Anamnesis] Core process exited with code ${code}`);
+      const msg = `[Anamnesis] Core process exited with code ${code}\n`;
+      console.log(msg.trimEnd());
+      this.logStream?.write(msg);
+      this.logStream?.end();
+      this.logStream = null;
       this.process = null;
       this._setStatus(code === 0 ? "stopped" : "error", String(code));
       this.stopPolling();
@@ -187,9 +208,22 @@ export class CoreManager {
       const req = http.request(
         { hostname: "127.0.0.1", port: this.mgmtPort, path: endpoint, method: "POST",
           headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
-        (res) => { res.resume(); res.on("end", resolve); }
+        (res) => {
+          let resBody = "";
+          res.on("data", (c: Buffer) => { resBody += c; });
+          res.on("end", () => {
+            if ((res.statusCode ?? 200) >= 400) {
+              let msg = `HTTP ${res.statusCode ?? "error"}`;
+              try { msg = (JSON.parse(resBody) as { error?: string }).error ?? msg; } catch { /* use default */ }
+              reject(new Error(msg));
+            } else {
+              resolve();
+            }
+          });
+        }
       );
       req.on("error", reject);
+      req.setTimeout(5_000, () => req.destroy());
       if (body) req.write(body);
       req.end();
     });

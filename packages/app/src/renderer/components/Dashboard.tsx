@@ -62,6 +62,7 @@ export function Dashboard() {
   const [payload, setPayload] = useState<StatusPayload>({});
   const [dirs, setDirs] = useState<DirInfo[]>([]);
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
   const countdownRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -208,10 +209,19 @@ export function Dashboard() {
         )}
         <div className="btn-row">
           {mcpRunning
-            ? <button className="btn" onClick={() => void window.anamnesis.stopMcp()}>⏹ Stop</button>
-            : <button className="btn btn-primary" onClick={() => void window.anamnesis.startMcp()}>▶ Start</button>
+            ? <button className="btn" onClick={async () => {
+                setMcpError(null);
+                try { await window.anamnesis.stopMcp(); }
+                catch (e) { setMcpError(String(e)); }
+              }}>⏹ Stop</button>
+            : <button className="btn btn-primary" onClick={async () => {
+                setMcpError(null);
+                try { await window.anamnesis.startMcp(); }
+                catch (e) { setMcpError(String(e)); }
+              }}>▶ Start</button>
           }
         </div>
+        {mcpError && <span style={{ fontSize: 11, color: "var(--color-error, #e05)" }}>{mcpError}</span>}
         {mcpRunning && (
           <>
             <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Claude Desktop config snippet — click to copy:</span>
@@ -239,43 +249,50 @@ export function Dashboard() {
 }
 
 function AddFolderRow({ onAdded }: { onAdded: () => void }) {
-  const [path, setPath] = useState("");
+  const [folderPath, setFolderPath] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const browse = async () => {
     const selected = await window.anamnesis.openDirDialog();
-    if (selected) setPath(selected);
+    if (selected) { setFolderPath(selected); setError(null); }
   };
 
   const add = async () => {
-    const dir = path.trim();
+    const dir = folderPath.trim();
     if (!dir) return;
     setBusy(true);
+    setError(null);
     try {
       const cfg = await window.anamnesis.getConfig() as { watchDirs?: string[] };
       const current = cfg.watchDirs ?? [];
       if (!current.includes(dir)) {
         await window.anamnesis.saveConfig({ watchDirs: [...current, dir] });
       }
-      setPath("");
+      setFolderPath("");
       onAdded();
-    } catch { /* ignore */ }
+    } catch (e) {
+      setError(String(e));
+    }
     setBusy(false);
   };
 
   return (
-    <div className="add-folder-row">
-      <input
-        className="folder-input"
-        placeholder="Add folder path…"
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
-      />
-      <button className="btn btn-icon" onClick={() => void browse()} title="Browse">📁</button>
-      <button className="btn btn-primary" onClick={() => void add()} disabled={!path.trim() || busy}>
-        {busy ? "…" : "Add"}
-      </button>
+    <div>
+      <div className="add-folder-row">
+        <input
+          className="folder-input"
+          placeholder="Add folder path…"
+          value={folderPath}
+          onChange={(e) => { setFolderPath(e.target.value); setError(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
+        />
+        <button className="btn btn-icon" onClick={() => void browse()} title="Browse">📁</button>
+        <button className="btn btn-primary" onClick={() => void add()} disabled={!folderPath.trim() || busy}>
+          {busy ? "…" : "Add"}
+        </button>
+      </div>
+      {error && <span style={{ fontSize: 11, color: "var(--color-error, #e05)", display: "block", marginTop: 4 }}>{error}</span>}
     </div>
   );
 }

@@ -279,8 +279,21 @@ function startMgmtServer(port: number): http.Server {
       readBody(req, (body) => {
         try {
           const updated = body as Partial<AnamnesisConfig>;
+          const prevDirs = new Set(config.watchDirs);
           config = { ...config, ...updated };
           saveConfig(config, configPath);
+
+          // Dynamically add newly configured watch dirs
+          if (updated.watchDirs) {
+            for (const dir of config.watchDirs) {
+              if (!prevDirs.has(dir)) {
+                watcher.addDir(dir);
+                const files = collectFiles(dir).filter((fp) => indexer.isIndexable(fp));
+                if (files.length > 0) void indexer.indexFiles(files).catch((e: unknown) => console.warn("[Anamnesis] Index new dir failed:", e));
+              }
+            }
+          }
+
           res.end(JSON.stringify({ ok: true }));
         } catch (e) {
           res.writeHead(400);

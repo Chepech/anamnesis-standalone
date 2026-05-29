@@ -30,6 +30,10 @@ const api = {
   getConfig: () => ipcRenderer.invoke("get-config"),
   saveConfig: (partial: unknown) => ipcRenderer.invoke("save-config", partial),
 
+  // Log
+  getLogPath: () => ipcRenderer.invoke("get-log-path") as Promise<string>,
+  openLogFile: () => ipcRenderer.invoke("open-log-file") as Promise<void>,
+
   // Live status stream
   onStatusUpdate: (cb: (payload: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => cb(payload);

@@ -53,11 +53,13 @@ export function Settings() {
   const [draft,  setDraft]  = useState<AnamnesisConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg,    setMsg]    = useState<{ text: string; ok: boolean } | null>(null);
+  const [logPath, setLogPath] = useState<string>("");
 
   const dirty = config !== null && draft !== null
     && JSON.stringify(config) !== JSON.stringify(draft);
 
   useEffect(() => {
+    void window.anamnesis.getLogPath().then(setLogPath).catch(() => {});
     void (async () => {
       try {
         const c = await window.anamnesis.getConfig() as AnamnesisConfig;
@@ -292,6 +294,22 @@ export function Settings() {
               min={1024} max={65535}
               value={draft.mcpPort}
               onChange={e => patch("mcpPort", Number(e.target.value))} />
+          </div>
+        </div>
+
+        {/* ── Diagnostics ──────────────────────────────────────────── */}
+        <div className="card">
+          <div className="card-label">Diagnostics</div>
+          <div className="form-row">
+            <span className="form-label">Log file</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }} title={logPath}>
+                {logPath || "—"}
+              </span>
+              {logPath && (
+                <button className="btn" style={{ flexShrink: 0 }} onClick={() => void window.anamnesis.openLogFile()}>Open</button>
+              )}
+            </div>
           </div>
         </div>
 
