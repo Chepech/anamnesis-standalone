@@ -61,8 +61,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "compression": "lzma"
+      "allowToChangeInstallationDirectory": true
     },
     "publish": {
       "provider": "github",
