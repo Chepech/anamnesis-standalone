@@ -10,7 +10,7 @@
     "dev:core": "pnpm --filter @anamnesis/core dev",
     "dev:app": "pnpm --filter @anamnesis/app dev",
     "typecheck": "pnpm -r typecheck",
-    "deploy:core": "pnpm --filter @anamnesis/core deploy --legacy --prod packages/app/.deploy-core"
+    "deploy:core": "node packages/app/scripts/prepare-deploy.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

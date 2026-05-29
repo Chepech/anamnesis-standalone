@@ -55,12 +55,6 @@ importers:
       '@lancedb/lancedb':
         specifier: ^0.14.0
         version: 0.14.1(apache-arrow@18.1.0)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
-      '@mozilla/readability':
-        specifier: ^0.5.0
-        version: 0.5.0
       '@xenova/transformers':
         specifier: ^2.17.2
         version: 2.17.2
@@ -70,31 +64,25 @@ importers:
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
-      gray-matter:
-        specifier: ^4.0.3
-        version: 4.0.3
       jsdom:
         specifier: ^26.0.0
         version: 26.1.0
       mammoth:
         specifier: ^1.9.0
         version: 1.12.0
-      minimatch:
-        specifier: ^10.0.1
-        version: 10.2.5
       openai:
         specifier: ^6.34.0
         version: 6.39.1(ws@8.21.0)(zod@4.4.3)
       pdf-parse:
         specifier: ^1.1.1
         version: 1.1.4
-      turndown:
-        specifier: ^7.2.0
-        version: 7.2.4
-      zod:
-        specifier: ^4.3.6
-        version: 4.4.3
     devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      '@mozilla/readability':
+        specifier: ^0.5.0
+        version: 0.5.0
       '@types/jsdom':
         specifier: ^21.1.7
         version: 21.1.7
@@ -110,9 +98,21 @@ importers:
       esbuild:
         specifier: ^0.24.0
         version: 0.24.2
+      gray-matter:
+        specifier: ^4.0.3
+        version: 4.0.3
+      minimatch:
+        specifier: ^10.0.1
+        version: 10.2.5
+      turndown:
+        specifier: ^7.2.0
+        version: 7.2.4
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+      zod:
+        specifier: ^4.3.6
+        version: 4.4.3
 
 packages:
 

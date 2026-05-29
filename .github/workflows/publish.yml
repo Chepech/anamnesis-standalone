@@ -82,20 +82,7 @@ jobs:
         run: pnpm --filter @anamnesis/core build
 
       - name: Deploy core production dependencies
-        run: pnpm --filter @anamnesis/core deploy --legacy --prod packages/app/.deploy-core
-
-      - name: Remove circular pnpm self-reference from deploy
-        shell: bash
-        run: rm -rf packages/app/.deploy-core/node_modules/.pnpm/node_modules/
-
-      - name: Rebuild sharp native binding in deploy
-        shell: bash
-        run: |
-          SHARP_PNPM=$(find packages/app/.deploy-core/node_modules/.pnpm -maxdepth 1 -name "sharp@*" -type d | head -1)
-          if [ -n "$SHARP_PNPM" ]; then
-            cd "$SHARP_PNPM/node_modules/sharp"
-            npm run install || true
-          fi
+        run: node packages/app/scripts/prepare-deploy.mjs
 
       - name: Build Electron main
         run: pnpm --filter @anamnesis/app build:main

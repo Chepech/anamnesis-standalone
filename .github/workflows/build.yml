@@ -1,0 +1,73 @@
+name: Build
+
+# Trigger manually from the Actions tab, or automatically on every push to main.
+# Artifacts (installers) are retained for 14 days and downloadable from the run page.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/publish.yml'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            pkg_flag: --linux
+            artifact_name: linux
+          - os: macos-latest
+            pkg_flag: --mac
+            artifact_name: mac
+          - os: windows-latest
+            pkg_flag: --win
+            artifact_name: win
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core daemon
+        run: pnpm --filter @anamnesis/core build
+
+      - name: Deploy core production dependencies
+        run: node packages/app/scripts/prepare-deploy.mjs
+
+      - name: Build Electron main
+        run: pnpm --filter @anamnesis/app build:main
+
+      - name: Build renderer
+        run: pnpm --filter @anamnesis/app build:renderer
+
+      - name: Package (no publish)
+        run: pnpm --filter @anamnesis/app exec electron-builder ${{ matrix.pkg_flag }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          WIN_CSC_LINK: ''
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anamnesis-${{ matrix.artifact_name }}
+          path: |
+            packages/app/dist/*.exe
+            packages/app/dist/*.dmg
+            packages/app/dist/*.AppImage
+            packages/app/dist/*.deb
+          retention-days: 14
+          if-no-files-found: error

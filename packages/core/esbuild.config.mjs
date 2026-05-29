@@ -2,27 +2,28 @@ import * as esbuild from "esbuild";
 
 const isProduction = process.argv[2] === "production";
 
-// Native addons and heavy optional deps — must stay external so Node resolves them
-// from node_modules at runtime rather than being bundled (they use native .node files).
+// Packages that must stay external:
+//   - native .node addons (@lancedb, onnxruntime-node, apache-arrow)
+//   - packages loaded via dynamic import at runtime (@xenova/transformers, openai)
+//   - complex parsers that bundle their own compiled assets (pdf-parse/pdf.js, mammoth)
+//   - packages that use optional native deps (jsdom, chokidar)
+//
+// Everything else (pure-JS, statically imported) is bundled so it does not need
+// to be shipped in node_modules inside the installer.
 const external = [
-  // Native addons — must stay external
+  // Native addons
   "@lancedb/lancedb",
   "apache-arrow",
   "onnxruntime-node",
-  // Large runtime deps loaded from node_modules at runtime
+  // Dynamic imports — esbuild cannot tree-shake these
   "@xenova/transformers",
-  "@modelcontextprotocol/sdk",
+  "openai",
+  // Complex packages with bundled compiled assets or optional native deps
   "jsdom",
-  "@mozilla/readability",
   "mammoth",
   "pdf-parse",
-  "gray-matter",
-  "turndown",
   "chokidar",
-  "minimatch",
-  "openai",
-  "zod",
-  // Optional native deps
+  // Optional native deps (not in use but referenced as optionalDependencies)
   "sharp",
   "canvas",
 ];
