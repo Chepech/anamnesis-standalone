@@ -52,7 +52,17 @@ ipcMain.handle("core-pause", () => coreManager.pause());
 ipcMain.handle("core-resume", () => coreManager.resume());
 ipcMain.handle("core-flush", () => coreManager.flush());
 
-ipcMain.handle("core-get-dirs", () => coreManager.getDirs());
+ipcMain.handle("core-get-dirs", async () => {
+  try {
+    return await coreManager.getDirs();
+  } catch {
+    // Daemon not running — synthesise dir list from config file
+    try {
+      const raw = JSON.parse(fs.readFileSync(configPath, "utf-8")) as { watchDirs?: string[] };
+      return (raw.watchDirs ?? []).map((p: string) => ({ path: p, paused: false, chunkCount: 0 }));
+    } catch { return []; }
+  }
+});
 ipcMain.handle("core-pause-dir", (_e, dir: string) => coreManager.pauseDir(dir));
 ipcMain.handle("core-resume-dir", (_e, dir: string) => coreManager.resumeDir(dir));
 ipcMain.handle("core-reindex-dir", (_e, dir: string) => coreManager.reindexDir(dir));

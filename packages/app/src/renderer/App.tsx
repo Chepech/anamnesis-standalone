@@ -1,7 +1,32 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Component, type ReactNode, type ErrorInfo } from "react";
 import { Dashboard } from "./components/Dashboard.js";
 import { GraphPanel } from "./components/GraphPanel.js";
 import { Settings } from "./components/Settings.js";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(err: unknown) {
+    return { error: String(err) };
+  }
+  componentDidCatch(err: Error, info: ErrorInfo) {
+    console.error("[Anamnesis] Render error:", err, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 16 }}>
+          <div style={{ color: "var(--color-error, #e05)", fontWeight: 600, marginBottom: 8 }}>Render error</div>
+          <pre style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{this.state.error}</pre>
+          <button className="btn" style={{ marginTop: 8 }} onClick={() => this.setState({ error: null })}>Dismiss</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type Tab = "dashboard" | "graph" | "settings";
 
@@ -48,11 +73,11 @@ export function App() {
 
       {tab === "dashboard" && (
         <div className="scroll">
-          <Dashboard />
+          <ErrorBoundary><Dashboard /></ErrorBoundary>
         </div>
       )}
-      {tab === "graph" && <GraphPanel />}
-      {tab === "settings" && <Settings />}
+      {tab === "graph" && <ErrorBoundary><GraphPanel /></ErrorBoundary>}
+      {tab === "settings" && <ErrorBoundary><Settings /></ErrorBoundary>}
     </div>
   );
 }

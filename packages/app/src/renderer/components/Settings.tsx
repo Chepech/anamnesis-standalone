@@ -20,6 +20,24 @@ interface AnamnesisConfig {
   mcpPort: number;
 }
 
+const DEFAULT_CONFIG: AnamnesisConfig = {
+  watchDirs: [],
+  embeddingProvider: "local",
+  localModelName: "Xenova/all-MiniLM-L6-v2",
+  openaiApiKey: "",
+  openaiModelName: "text-embedding-3-small",
+  chunkSize: 512,
+  chunkOverlap: 64,
+  excludePatterns: [".git", "node_modules", ".obsidian"],
+  autoIndexOnChange: true,
+  indexingDebounceMs: 5000,
+  fileTypes: { markdown: true, pdf: true, docx: true, html: false },
+  hybridSearch: true,
+  importanceWeight: 0.05,
+  mcpEnabled: true,
+  mcpPort: 8868,
+};
+
 const LOCAL_MODELS = [
   { value: "Xenova/all-MiniLM-L6-v2", label: "all-MiniLM-L6-v2 (384d, fast)" },
   { value: "Xenova/all-mpnet-base-v2", label: "all-mpnet-base-v2 (768d, better quality)" },
@@ -58,17 +76,28 @@ export function Settings() {
   const dirty = config !== null && draft !== null
     && JSON.stringify(config) !== JSON.stringify(draft);
 
-  useEffect(() => {
-    void window.anamnesis.getLogPath().then(setLogPath).catch(() => {});
+  const loadConfig = () => {
     void (async () => {
+      setMsg(null);
       try {
-        const c = await window.anamnesis.getConfig() as AnamnesisConfig;
+        const raw = await window.anamnesis.getConfig() as Partial<AnamnesisConfig>;
+        const c: AnamnesisConfig = {
+          ...DEFAULT_CONFIG,
+          ...raw,
+          fileTypes: { ...DEFAULT_CONFIG.fileTypes, ...(raw.fileTypes ?? {}) },
+        };
         setConfig(c);
         setDraft(c);
       } catch (e) {
         setMsg({ text: `Could not load config: ${String(e)}`, ok: false });
       }
     })();
+  };
+
+  useEffect(() => {
+    void window.anamnesis.getLogPath().then(setLogPath).catch(() => {});
+    loadConfig();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function patch<K extends keyof AnamnesisConfig>(key: K, value: AnamnesisConfig[K]) {
@@ -100,7 +129,14 @@ export function Settings() {
     return (
       <div className="settings-shell">
         <div className="scroll">
-          <div className="settings-placeholder">{msg?.text ?? "Loading config…"}</div>
+          <div className="settings-placeholder">
+            <span style={{ color: msg && !msg.ok ? "var(--color-error, #e05)" : undefined }}>
+              {msg?.text ?? "Loading config…"}
+            </span>
+            {msg && !msg.ok && (
+              <button className="btn" style={{ marginTop: 8 }} onClick={loadConfig}>Retry</button>
+            )}
+          </div>
         </div>
       </div>
     );

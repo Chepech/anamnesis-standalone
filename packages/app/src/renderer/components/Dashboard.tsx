@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 interface DirInfo { path: string; paused: boolean; chunkCount: number; }
 
 interface StatusPayload {
-  status?: string;
+  status?: string;   // CoreStatus: stopped | starting | running | error
+  error?: string;    // exit code or error message when status=error
   indexStatus?: { state?: string; current?: number; total?: number; label?: string; count?: number; flushAt?: number; delayMs?: number; message?: string };
   mcpStatus?: string;
   mcpPort?: number;
@@ -63,6 +64,7 @@ export function Dashboard() {
   const [dirs, setDirs] = useState<DirInfo[]>([]);
   const [mcpCopied, setMcpCopied] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
+  const [reindexError, setReindexError] = useState<string | null>(null);
   const countdownRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -111,8 +113,11 @@ export function Dashboard() {
     }
   }, [payload.indexStatus]);
 
+  const daemonStatus = payload.status;            // stopped | starting | running | error | undefined
+  const daemonDown = daemonStatus === "error" || daemonStatus === "stopped";
+  const daemonStarting = daemonStatus === "starting";
   const idx = payload.indexStatus;
-  const state = idx?.state ?? "idle";
+  const state = daemonDown ? "error" : daemonStarting ? "idle" : (idx?.state ?? "idle");
   const mcpRunning = payload.mcpStatus === "running";
   const mcpPort = payload.mcpPort ?? 8868;
   const mcpSnippet = `{
@@ -134,40 +139,75 @@ export function Dashboard() {
       {/* ── Status card ─────────────────────────────────────────── */}
       <div className="card">
         <div className="card-label">Status</div>
-        <div className="status-row">
-          <div className={`status-dot ${statusDotClass(state)}`} />
-          <span className="status-label">{statusText(idx)}</span>
-        </div>
 
-        {(state === "indexing" || state === "paused") && (
-          <div className="progress-wrap">
-            <div className="progress-fill" style={{ width: `${idx?.total ? ((idx?.current ?? 0) / idx.total) * 100 : 0}%` }} />
+        {daemonDown ? (
+          <>
+            <div className="status-row">
+              <div className="status-dot error" />
+              <span className="status-label" style={{ color: "var(--color-error, #e05)" }}>
+                Daemon not running
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
+              {payload.error ? `Exit code: ${payload.error}` : "Check the log file in Settings → Diagnostics for details."}
+            </span>
+          </>
+        ) : daemonStarting ? (
+          <div className="status-row">
+            <div className="status-dot idle" />
+            <span className="status-label">Starting daemon… (loading model on first run may take a minute)</span>
           </div>
-        )}
+        ) : (
+          <>
+            <div className="status-row">
+              <div className={`status-dot ${statusDotClass(state)}`} />
+              <span className="status-label">{statusText(idx)}</span>
+            </div>
 
-        {state === "queued" && (
-          <div className="countdown-wrap">
-            <div className="countdown-fill" ref={countdownRef} />
-          </div>
+            {(state === "indexing" || state === "paused") && (
+              <div className="progress-wrap">
+                <div className="progress-fill" style={{ width: `${idx?.total ? ((idx?.current ?? 0) / idx.total) * 100 : 0}%` }} />
+              </div>
+            )}
+
+            {state === "queued" && (
+              <div className="countdown-wrap">
+                <div className="countdown-fill" ref={countdownRef} />
+              </div>
+            )}
+          </>
         )}
 
         <div className="btn-row">
-          {state === "indexing" && (
+          {!daemonDown && !daemonStarting && state === "indexing" && (
             <button className="btn" onClick={() => void window.anamnesis.pause()}>⏸ Pause</button>
           )}
-          {state === "paused" && (
+          {!daemonDown && !daemonStarting && state === "paused" && (
             <button className="btn btn-primary" onClick={() => void window.anamnesis.resume()}>▶ Resume</button>
           )}
-          {(state === "idle" || state === "error") && (
-            <button className="btn btn-primary" onClick={() => void window.anamnesis.reindex()}>⟳ Re-index All</button>
+          {!daemonDown && !daemonStarting && (state === "idle" || state === "error") && (
+            <button
+              className="btn btn-primary"
+              disabled={dirs.length === 0}
+              title={dirs.length === 0 ? "Add a folder first" : undefined}
+              onClick={async () => {
+                setReindexError(null);
+                try { await window.anamnesis.reindex(); }
+                catch (e) { setReindexError(String(e)); }
+              }}
+            >⟳ Re-index All</button>
           )}
-          {state === "queued" && (
+          {!daemonDown && !daemonStarting && state === "queued" && (
             <>
               <button className="btn btn-primary" onClick={() => void window.anamnesis.flush()}>⚡ Index Now</button>
               <button className="btn" onClick={() => void window.anamnesis.reindex()}>⟳ Full Re-index</button>
             </>
           )}
         </div>
+        {dirs.length === 0 && !daemonDown && !daemonStarting && (
+          <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Add a folder below to start indexing.</span>
+        )}
+        {reindexError && <span style={{ fontSize: 11, color: "var(--color-error, #e05)" }}>{reindexError}</span>}
       </div>
 
       {/* ── Watched folders ──────────────────────────────────────── */}
