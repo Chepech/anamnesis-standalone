@@ -219,6 +219,12 @@ export function Dashboard() {
             <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
               {payload.error ? `Exit code: ${payload.error}` : "Check the log file in Settings → Diagnostics for details."}
             </span>
+            <div className="btn-row">
+              <button
+                className="btn btn-primary"
+                onClick={() => void window.anamnesis.restart()}
+              >▶ Start Daemon</button>
+            </div>
           </>
         ) : daemonStarting ? (
           <div className="status-row">

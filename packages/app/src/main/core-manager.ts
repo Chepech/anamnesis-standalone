@@ -116,6 +116,11 @@ export class CoreManager {
 
   // ── Index controls ────────────────────────────────────────────────────────
 
+  async restart(): Promise<void> {
+    await this.stop();
+    await this.start();
+  }
+
   async reindex(): Promise<void> { await this.post("/reindex"); }
   async pause(): Promise<void> { await this.post("/pause"); }
   async resume(): Promise<void> { await this.post("/resume"); }

@@ -5,6 +5,7 @@ const api = {
   getStatus: () => ipcRenderer.invoke("core-status"),
 
   // Index controls (mirror plugin menu)
+  restart: () => ipcRenderer.invoke("core-restart"),
   reindex: () => ipcRenderer.invoke("core-reindex"),
   pause: () => ipcRenderer.invoke("core-pause"),
   resume: () => ipcRenderer.invoke("core-resume"),

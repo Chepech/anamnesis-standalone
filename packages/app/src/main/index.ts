@@ -47,6 +47,7 @@ app.on("ready", async () => {
 ipcMain.handle("get-config-path", () => configPath);
 ipcMain.handle("core-status", () => coreManager.payload);
 
+ipcMain.handle("core-restart", () => coreManager.restart())
 ipcMain.handle("core-reindex", () => coreManager.reindex());
 ipcMain.handle("core-pause", () => coreManager.pause());
 ipcMain.handle("core-resume", () => coreManager.resume());
