@@ -30,6 +30,12 @@ const api = {
   getConfig: () => ipcRenderer.invoke("get-config"),
   saveConfig: (partial: unknown) => ipcRenderer.invoke("save-config", partial),
 
+  // Search
+  search: (query: string, limit?: number) => ipcRenderer.invoke("core-search", query, limit ?? 15) as Promise<unknown>,
+
+  // Open file location in OS explorer
+  openFileFolder: (filePath: string) => ipcRenderer.invoke("open-file-folder", filePath) as Promise<void>,
+
   // Log
   getLogPath: () => ipcRenderer.invoke("get-log-path") as Promise<string>,
   openLogFile: () => ipcRenderer.invoke("open-log-file") as Promise<void>,

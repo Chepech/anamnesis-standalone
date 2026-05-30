@@ -292,11 +292,25 @@ export class IndexingEngine {
     if ((ext === ".html" || ext === ".htm") && !ft.html) return false;
 
     const fpNorm = filePath.replace(/\\/g, "/");
-    return !this.config.excludePatterns.some((pattern) => {
+
+    // Global exclude patterns
+    if (this.config.excludePatterns.some((pattern) => {
       const rel = path.relative(this.config.watchDirs[0] ?? "/", filePath);
       const patNorm = pattern.replace(/\\/g, "/");
       return minimatch(rel, pattern, { matchBase: true }) || fpNorm.includes(`/${patNorm}/`);
-    });
+    })) return false;
+
+    // Per-dir exclude patterns
+    for (const [dir, patterns] of Object.entries(this.config.dirExcludePatterns ?? {}) as [string, string[]][]) {
+      if (!fpNorm.startsWith(dir.replace(/\\/g, "/"))) continue;
+      const rel = path.relative(dir, filePath);
+      if (patterns.some((pattern) => {
+        const patNorm = pattern.replace(/\\/g, "/");
+        return minimatch(rel, pattern, { matchBase: true }) || fpNorm.includes(`/${patNorm}/`);
+      })) return false;
+    }
+
+    return true;
   }
 
   private async fileToRecords(file: FileEntry): Promise<ChunkRecord[]> {

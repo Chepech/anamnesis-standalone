@@ -95,11 +95,18 @@ ipcMain.handle("save-config", async (_e, partial: unknown) => {
   }
 });
 
+ipcMain.handle("core-search", (_e, query: string, limit: number) => coreManager.search(query, limit ?? 15));
+
 ipcMain.handle("get-log-path", () => logPath);
 
 ipcMain.handle("open-log-file", async () => {
   const { shell } = await import("electron");
   await shell.openPath(logPath);
+});
+
+ipcMain.handle("open-file-folder", async (_e, filePath: string) => {
+  const { shell } = await import("electron");
+  shell.showItemInFolder(filePath);
 });
 
 ipcMain.handle("open-dir-dialog", async () => {

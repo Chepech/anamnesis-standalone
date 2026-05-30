@@ -22,6 +22,7 @@ export const ConfigSchema = z.object({
   }).default({ markdown: true, pdf: true, docx: true, html: false }),
   hybridSearch: z.boolean().default(true),
   importanceWeight: z.number().min(0).max(1).default(0.05),
+  dirExcludePatterns: z.record(z.string(), z.array(z.string())).default({}),
   mcpEnabled: z.boolean().default(true),
   mcpPort: z.number().int().min(1024).max(65535).default(8868),
   dataDir: z.string().default(""),

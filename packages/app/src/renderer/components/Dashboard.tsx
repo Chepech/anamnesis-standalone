@@ -31,13 +31,24 @@ function statusText(idx: StatusPayload["indexStatus"]): string {
   }
 }
 
-function FolderCard({ dir, onPause, onResume, onReindex, onRemove }: {
+function FolderCard({ dir, excludePatterns, onPause, onResume, onReindex, onRemove, onUpdateExcludes }: {
   dir: DirInfo;
+  excludePatterns: string[];
   onPause: () => void;
   onResume: () => void;
   onReindex: () => void;
   onRemove: () => void;
+  onUpdateExcludes: (patterns: string[]) => void;
 }) {
+  const [excludesOpen, setExcludesOpen] = useState(false);
+  const [newPattern, setNewPattern] = useState("");
+
+  const addPattern = () => {
+    const p = newPattern.trim();
+    if (p && !excludePatterns.includes(p)) { onUpdateExcludes([...excludePatterns, p]); }
+    setNewPattern("");
+  };
+
   return (
     <div className={`folder-card${dir.paused ? " paused" : ""}`}>
       <div className="folder-top">
@@ -48,6 +59,40 @@ function FolderCard({ dir, onPause, onResume, onReindex, onRemove }: {
           <button className="btn-remove" onClick={onRemove} title="Remove folder">×</button>
         </div>
       </div>
+
+      {/* Per-folder exclude patterns */}
+      <button
+        className="btn"
+        style={{ alignSelf: "flex-start", fontSize: 11, marginTop: 4 }}
+        onClick={() => setExcludesOpen(o => !o)}
+      >
+        {excludesOpen ? "▾" : "▸"} Exclude patterns{excludePatterns.length > 0 ? ` (${excludePatterns.length})` : ""}
+      </button>
+
+      {excludesOpen && (
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+          {excludePatterns.length === 0 && (
+            <span style={{ fontSize: 11, color: "var(--text-faint)" }}>No patterns set.</span>
+          )}
+          {excludePatterns.map((p, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, flex: 1 }}>{p}</span>
+              <button className="btn-remove" onClick={() => onUpdateExcludes(excludePatterns.filter((_, j) => j !== i))} title="Remove">×</button>
+            </div>
+          ))}
+          <div className="add-folder-row" style={{ marginTop: 4 }}>
+            <input
+              className="folder-input"
+              placeholder="e.g. .git or node_modules"
+              value={newPattern}
+              onChange={(e) => setNewPattern(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addPattern(); }}
+            />
+            <button className="btn btn-primary" onClick={addPattern} disabled={!newPattern.trim()}>Add</button>
+          </div>
+        </div>
+      )}
+
       <div className="folder-actions">
         {dir.paused
           ? <button className="btn" onClick={onResume} title="Resume monitoring">▶ Resume</button>
@@ -62,6 +107,7 @@ function FolderCard({ dir, onPause, onResume, onReindex, onRemove }: {
 export function Dashboard() {
   const [payload, setPayload] = useState<StatusPayload>({});
   const [dirs, setDirs] = useState<DirInfo[]>([]);
+  const [dirExcludes, setDirExcludes] = useState<Record<string, string[]>>({});
   const [mcpCopied, setMcpCopied] = useState(false);
   const [mcpSnippetOpen, setMcpSnippetOpen] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
@@ -71,6 +117,22 @@ export function Dashboard() {
 
   const refreshDirs = useCallback(async () => {
     try { setDirs(await window.anamnesis.getDirs() as DirInfo[]); } catch { /* ignore */ }
+  }, []);
+
+  const refreshDirExcludes = useCallback(async () => {
+    try {
+      const cfg = await window.anamnesis.getConfig() as { dirExcludePatterns?: Record<string, string[]> };
+      setDirExcludes(cfg.dirExcludePatterns ?? {});
+    } catch { /* ignore */ }
+  }, []);
+
+  const updateDirExcludes = useCallback(async (dirPath: string, patterns: string[]) => {
+    try {
+      const cfg = await window.anamnesis.getConfig() as { dirExcludePatterns?: Record<string, string[]> };
+      const updated = { ...(cfg.dirExcludePatterns ?? {}), [dirPath]: patterns };
+      await window.anamnesis.saveConfig({ dirExcludePatterns: updated });
+      setDirExcludes(updated);
+    } catch { /* ignore */ }
   }, []);
 
   const removeDir = useCallback(async (dirPath: string) => {
@@ -86,7 +148,7 @@ export function Dashboard() {
   useEffect(() => {
     void (async () => {
       try { setPayload(await window.anamnesis.getStatus() as StatusPayload); } catch { /* ignore */ }
-      await refreshDirs();
+      await Promise.all([refreshDirs(), refreshDirExcludes()]);
     })();
 
     const unsub = window.anamnesis.onStatusUpdate((p) => {
@@ -223,10 +285,12 @@ export function Dashboard() {
           <FolderCard
             key={d.path}
             dir={d}
+            excludePatterns={dirExcludes[d.path] ?? []}
             onPause={() => { void window.anamnesis.pauseDir(d.path).then(refreshDirs); }}
             onResume={() => { void window.anamnesis.resumeDir(d.path).then(refreshDirs); }}
             onReindex={() => { void window.anamnesis.reindexDir(d.path); }}
             onRemove={() => { void removeDir(d.path); }}
+            onUpdateExcludes={(patterns) => { void updateDirExcludes(d.path, patterns); }}
           />
         ))}
 

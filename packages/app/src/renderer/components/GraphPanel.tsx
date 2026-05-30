@@ -32,7 +32,7 @@ function knnEdges(vecs: number[][], k: number): Edge[] {
   return edges;
 }
 
-export function GraphPanel() {
+export function GraphPanel({ chunkCount }: { chunkCount: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -43,6 +43,7 @@ export function GraphPanel() {
   const [folderColors, setFolderColors] = useState(new Map<string, string>());
   const [building, setBuilding] = useState(false);
 
+  const autoBuiltRef = useRef(false);
   const stateRef = useRef({ nodes, edges, pan: { x: 0, y: 0 }, zoom: 1, dragging: false, dragStart: { x: 0, y: 0 }, panStart: { x: 0, y: 0 }, hovered: null as Node | null });
   stateRef.current.nodes = nodes;
   stateRef.current.edges = edges;
@@ -272,6 +273,14 @@ export function GraphPanel() {
       setBuilding(false);
     }
   }, []);
+
+  // Auto-build once on mount if vectors exist; manual Rebuild is always available
+  useEffect(() => {
+    if (chunkCount > 0 && !autoBuiltRef.current && nodes.length === 0 && !building) {
+      autoBuiltRef.current = true;
+      void buildGraph();
+    }
+  }, [chunkCount, nodes.length, building, buildGraph]);
 
   return (
     <div className="graph-panel">

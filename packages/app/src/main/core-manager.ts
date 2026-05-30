@@ -144,6 +144,12 @@ export class CoreManager {
     return data.nodes ?? [];
   }
 
+  // ── Search ───────────────────────────────────────────────────────────────
+
+  async search(query: string, limit = 15): Promise<unknown> {
+    return this.get<unknown>(`/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  }
+
   // ── Config ────────────────────────────────────────────────────────────────
 
   async getConfig(): Promise<unknown> {

@@ -270,6 +270,16 @@ function startMgmtServer(port: number): http.Server {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/search") {
+      const q = url.searchParams.get("q") ?? "";
+      const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "15", 10), 50);
+      if (!q) { res.writeHead(400); res.end(JSON.stringify({ error: "q is required" })); return; }
+      void search.search(q, limit)
+        .then((results) => res.end(JSON.stringify(results)))
+        .catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/config") {
       res.end(JSON.stringify(config));
       return;
@@ -281,6 +291,7 @@ function startMgmtServer(port: number): http.Server {
           const updated = body as Partial<AnamnesisConfig>;
           const prevDirs = new Set(config.watchDirs);
           const prevExclude = JSON.stringify(config.excludePatterns ?? []);
+          const prevDirExclude = JSON.stringify(config.dirExcludePatterns ?? {});
           config = { ...config, ...updated };
           indexer.updateConfig(config);
           saveConfig(config, configPath);
@@ -297,7 +308,8 @@ function startMgmtServer(port: number): http.Server {
           }
 
           // Purge newly excluded files from the index
-          if (updated.excludePatterns && JSON.stringify(config.excludePatterns) !== prevExclude) {
+          if ((updated.excludePatterns && JSON.stringify(config.excludePatterns) !== prevExclude) ||
+              (updated.dirExcludePatterns && JSON.stringify(config.dirExcludePatterns) !== prevDirExclude)) {
             void (async () => {
               try {
                 const pathCounts = await db.getChunkCountsByDir();

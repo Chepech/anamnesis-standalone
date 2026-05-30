@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Component, type ReactNode, type ErrorInfo } from "react";
 import { Dashboard } from "./components/Dashboard.js";
 import { GraphPanel } from "./components/GraphPanel.js";
+import { Search } from "./components/Search.js";
 import { Settings } from "./components/Settings.js";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -28,10 +29,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
   }
 }
 
-type Tab = "dashboard" | "graph" | "settings";
+type Tab = "dashboard" | "graph" | "search" | "settings";
 
 interface StatusPayload {
   indexStatus?: { state?: string };
+  chunkCount?: number;
 }
 
 function headerDotClass(payload: StatusPayload): string {
@@ -60,24 +62,27 @@ export function App() {
       </div>
 
       <div className="tabs">
-        <div className={`tab${tab === "dashboard" ? " active" : ""}`} onClick={() => setTab("dashboard")}>
-          Dashboard
-        </div>
-        <div className={`tab${tab === "graph" ? " active" : ""}`} onClick={() => setTab("graph")}>
-          Vector Graph
-        </div>
-        <div className={`tab${tab === "settings" ? " active" : ""}`} onClick={() => setTab("settings")}>
-          Settings
-        </div>
+        <div className={`tab${tab === "dashboard" ? " active" : ""}`} onClick={() => setTab("dashboard")}>Dashboard</div>
+        <div className={`tab${tab === "graph" ? " active" : ""}`} onClick={() => setTab("graph")}>Vector Graph</div>
+        <div className={`tab${tab === "search" ? " active" : ""}`} onClick={() => setTab("search")}>Search</div>
+        <div className={`tab${tab === "settings" ? " active" : ""}`} onClick={() => setTab("settings")}>Settings</div>
       </div>
 
-      {tab === "dashboard" && (
+      {/* Tabs are hidden via CSS rather than unmounted so state (e.g. built graph) persists */}
+      <div style={{ display: tab === "dashboard" ? "contents" : "none" }}>
         <div className="scroll">
           <ErrorBoundary><Dashboard /></ErrorBoundary>
         </div>
-      )}
-      {tab === "graph" && <ErrorBoundary><GraphPanel /></ErrorBoundary>}
-      {tab === "settings" && <ErrorBoundary><Settings /></ErrorBoundary>}
+      </div>
+      <div style={{ display: tab === "graph" ? "contents" : "none" }}>
+        <ErrorBoundary><GraphPanel chunkCount={status.chunkCount ?? 0} /></ErrorBoundary>
+      </div>
+      <div style={{ display: tab === "search" ? "contents" : "none" }}>
+        <ErrorBoundary><Search /></ErrorBoundary>
+      </div>
+      <div style={{ display: tab === "settings" ? "contents" : "none" }}>
+        <ErrorBoundary><Settings /></ErrorBoundary>
+      </div>
     </div>
   );
 }

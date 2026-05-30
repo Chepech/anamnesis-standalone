@@ -76,6 +76,12 @@ export function Settings() {
   const dirty = config !== null && draft !== null
     && JSON.stringify(config) !== JSON.stringify(draft);
 
+  const modelChanged = config !== null && draft !== null && (
+    draft.embeddingProvider !== config.embeddingProvider ||
+    draft.localModelName !== config.localModelName ||
+    draft.openaiModelName !== config.openaiModelName
+  );
+
   const loadConfig = () => {
     void (async () => {
       setMsg(null);
@@ -182,6 +188,27 @@ export function Settings() {
                 {LOCAL_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 {isCustomModel && <option value="__custom__">{draft.localModelName} (custom)</option>}
               </select>
+            </div>
+          )}
+
+          {modelChanged && (
+            <div style={{ background: "var(--bg-secondary, #222)", border: "1px solid var(--color-warning, #c80)", borderRadius: 6, padding: "10px 12px", marginTop: 4 }}>
+              <span style={{ fontSize: 12, color: "var(--color-warning, #c80)" }}>
+                Changing the model requires downloading it and rebuilding the full index. Existing vectors will be replaced.
+              </span>
+              <div className="btn-row" style={{ marginTop: 8 }}>
+                <button className="btn btn-primary" onClick={() => { /* accept — keep draft, warning clears on save */ }}>Accept</button>
+                <button className="btn" onClick={() => {
+                  if (config) {
+                    setDraft(d => d ? {
+                      ...d,
+                      embeddingProvider: config.embeddingProvider,
+                      localModelName: config.localModelName,
+                      openaiModelName: config.openaiModelName ?? d.openaiModelName,
+                    } : d);
+                  }
+                }}>Cancel</button>
+              </div>
             </div>
           )}
 
