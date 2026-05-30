@@ -47,6 +47,10 @@ export function App() {
   const [status, setStatus] = useState<StatusPayload>({});
 
   useEffect(() => {
+    document.documentElement.dataset.platform = window.anamnesis.platform;
+  }, []);
+
+  useEffect(() => {
     void (async () => {
       try { setStatus(await window.anamnesis.getStatus() as StatusPayload); } catch { /* ignore */ }
     })();

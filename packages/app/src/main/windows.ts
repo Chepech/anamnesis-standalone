@@ -16,8 +16,17 @@ export class WindowsManager {
       minWidth: 600,
       minHeight: 520,
       title: "Anamnesis",
-      backgroundColor: "#0e0e10",
+      backgroundColor: "#08070c",
       show: false,
+      titleBarStyle: "hidden",
+      // macOS: keep traffic lights, nudge them to align with our header padding
+      ...(process.platform === "darwin" && {
+        trafficLightPosition: { x: 12, y: 11 },
+      }),
+      // Windows: native caption buttons with Anvilmar purple-deep background
+      ...(process.platform === "win32" && {
+        titleBarOverlay: { color: "#1f1730", symbolColor: "#e8e4f0", height: 36 },
+      }),
       webPreferences: {
         preload: path.join(__dirname, "..", "preload", "index.js"),
         contextIsolation: true,
@@ -33,9 +42,6 @@ export class WindowsManager {
       void shell.openExternal(url);
       return { action: "deny" };
     });
-
-    // Remove default menu bar
-    this.panelWindow.setMenuBarVisibility(false);
   }
 
   closeAll(): void {

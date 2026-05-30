@@ -140,7 +140,11 @@ html, body, #root {
   flex-shrink: 0;
   background: var(--purple-deep);
   box-shadow: var(--edge-bottom);
+  /* Frameless window drag zone — entire header is draggable */
+  -webkit-app-region: drag;
 }
+/* macOS: reserve space for traffic lights (close/minimize/maximize) */
+[data-platform="darwin"] .header { padding-left: 80px; }
 .header-logo { width: 20px; height: 20px; object-fit: contain; }
 .header-title {
   font-family: var(--font-display);
@@ -167,6 +171,8 @@ html, body, #root {
   border-bottom: 1px solid var(--purple-arm);
   flex-shrink: 0;
   background: var(--bg-1);
+  /* Tabs and all content below are not part of the drag zone */
+  -webkit-app-region: no-drag;
 }
 .tab {
   padding: 7px 16px;

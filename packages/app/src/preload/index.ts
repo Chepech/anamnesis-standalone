@@ -36,6 +36,9 @@ const api = {
   // Open file location in OS explorer
   openFileFolder: (filePath: string) => ipcRenderer.invoke("open-file-folder", filePath) as Promise<void>,
 
+  // Runtime info
+  platform: process.platform as string,
+
   // Log
   getLogPath: () => ipcRenderer.invoke("get-log-path") as Promise<string>,
   openLogFile: () => ipcRenderer.invoke("open-log-file") as Promise<void>,
