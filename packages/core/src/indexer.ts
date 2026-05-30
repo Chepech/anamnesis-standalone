@@ -96,6 +96,10 @@ export class IndexingEngine {
     this.backlinks = new BacklinkRegistry();
   }
 
+  updateConfig(config: AnamnesisConfig): void {
+    this.config = config;
+  }
+
   get isRunning(): boolean { return this._running; }
   get isPaused(): boolean { return this._paused; }
   get lastIndexedCount(): number { return this._lastIndexedCount; }
@@ -287,9 +291,11 @@ export class IndexingEngine {
     if (ext === ".docx" && !ft.docx) return false;
     if ((ext === ".html" || ext === ".htm") && !ft.html) return false;
 
+    const fpNorm = filePath.replace(/\\/g, "/");
     return !this.config.excludePatterns.some((pattern) => {
       const rel = path.relative(this.config.watchDirs[0] ?? "/", filePath);
-      return minimatch(rel, pattern, { matchBase: true }) || filePath.includes(`${path.sep}${pattern}${path.sep}`);
+      const patNorm = pattern.replace(/\\/g, "/");
+      return minimatch(rel, pattern, { matchBase: true }) || fpNorm.includes(`/${patNorm}/`);
     });
   }
 

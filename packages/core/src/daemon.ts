@@ -280,7 +280,9 @@ function startMgmtServer(port: number): http.Server {
         try {
           const updated = body as Partial<AnamnesisConfig>;
           const prevDirs = new Set(config.watchDirs);
+          const prevExclude = JSON.stringify(config.excludePatterns ?? []);
           config = { ...config, ...updated };
+          indexer.updateConfig(config);
           saveConfig(config, configPath);
 
           // Dynamically add newly configured watch dirs
@@ -292,6 +294,22 @@ function startMgmtServer(port: number): http.Server {
                 if (files.length > 0) void indexer.indexFiles(files).catch((e: unknown) => console.warn("[Anamnesis] Index new dir failed:", e));
               }
             }
+          }
+
+          // Purge newly excluded files from the index
+          if (updated.excludePatterns && JSON.stringify(config.excludePatterns) !== prevExclude) {
+            void (async () => {
+              try {
+                const pathCounts = await db.getChunkCountsByDir();
+                const toDelete = [...pathCounts.keys()].filter((fp) => !indexer.isIndexable(fp));
+                if (toDelete.length > 0) {
+                  await Promise.all(toDelete.map((fp) => indexer.deleteFile(fp)));
+                  console.log(`[Anamnesis] Purged ${toDelete.length} file(s) matching updated exclude patterns`);
+                }
+              } catch (e) {
+                console.warn("[Anamnesis] Failed to purge excluded files:", e);
+              }
+            })();
           }
 
           res.end(JSON.stringify({ ok: true }));

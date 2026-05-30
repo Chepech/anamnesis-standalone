@@ -219,10 +219,22 @@ export function GraphPanel() {
       setStatus(`Computing layout for ${rawNodes.length} notes…`);
       const vecs = rawNodes.map((n: { vector: number[] }) => n.vector);
 
+      // Determine folder grouping by finding the first path component that diverges across files
+      const allParts = rawNodes.map((n: { id: string }) => n.id.replace(/\\/g, "/").split("/").filter(Boolean));
+      let commonDepth = 0;
+      if (allParts.length > 1) {
+        const minLen = Math.min(...allParts.map((p: string[]) => p.length));
+        for (let d = 0; d < minLen; d++) {
+          if (allParts.every((p: string[]) => p[d] === allParts[0][d])) commonDepth = d + 1;
+          else break;
+        }
+      }
+
       let colorIdx = 0;
       const fc = new Map<string, string>();
       const getColor = (fp: string) => {
-        const folder = fp.includes("/") ? fp.split("/")[0] : "root";
+        const parts = fp.replace(/\\/g, "/").split("/").filter(Boolean);
+        const folder = parts[commonDepth] ?? parts[parts.length - 1] ?? "root";
         if (!fc.has(folder)) fc.set(folder, PALETTE[colorIdx++ % PALETTE.length]);
         return fc.get(folder)!;
       };
