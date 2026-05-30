@@ -153,6 +153,12 @@ function startMgmtServer(port: number): http.Server {
 
     const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
 
+    if (req.method === "POST" && url.pathname === "/shutdown") {
+      res.end(JSON.stringify({ ok: true }));
+      void shutdown("HTTP/shutdown");
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/status") {
       void db.countRows().then((chunkCount) => {
         res.end(JSON.stringify({
@@ -335,6 +341,26 @@ function startMgmtServer(port: number): http.Server {
 
     res.writeHead(404);
     res.end(JSON.stringify({ error: "not found" }));
+  });
+
+  let retried = false;
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE" && !retried) {
+      retried = true;
+      console.warn(`[Anamnesis] Port ${port} already in use — signalling existing process to shut down...`);
+      // Ask the existing instance to exit gracefully
+      const req = http.request(
+        { hostname: "127.0.0.1", port, path: "/shutdown", method: "POST", timeout: 2000 },
+        () => {}
+      );
+      req.on("error", () => {});
+      req.end();
+      // Give it 3 seconds to release the port, then retry
+      setTimeout(() => server.listen(port, "127.0.0.1"), 3000);
+    } else {
+      console.error(`[Anamnesis] Cannot bind management port ${port}: ${err.message}`);
+      process.exit(1);
+    }
   });
 
   server.listen(port, "127.0.0.1");
