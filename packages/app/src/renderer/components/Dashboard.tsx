@@ -63,6 +63,7 @@ export function Dashboard() {
   const [payload, setPayload] = useState<StatusPayload>({});
   const [dirs, setDirs] = useState<DirInfo[]>([]);
   const [mcpCopied, setMcpCopied] = useState(false);
+  const [mcpSnippetOpen, setMcpSnippetOpen] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [reindexError, setReindexError] = useState<string | null>(null);
   const countdownRef = useRef<HTMLDivElement>(null);
@@ -264,14 +265,22 @@ export function Dashboard() {
         {mcpError && <span style={{ fontSize: 11, color: "var(--color-error, #e05)" }}>{mcpError}</span>}
         {mcpRunning && (
           <>
-            <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Claude Desktop config snippet — click to copy:</span>
-            <div
-              className={`mcp-snippet${mcpCopied ? " copied" : ""}`}
-              onClick={() => void copySnippet()}
-              title="Click to copy"
+            <button
+              className="btn"
+              style={{ alignSelf: "flex-start", fontSize: 11 }}
+              onClick={() => setMcpSnippetOpen(o => !o)}
             >
-              {mcpCopied ? "Copied!" : mcpSnippet}
-            </div>
+              {mcpSnippetOpen ? "▾" : "▸"} Claude Desktop config snippet
+            </button>
+            {mcpSnippetOpen && (
+              <div
+                className={`mcp-snippet${mcpCopied ? " copied" : ""}`}
+                onClick={() => void copySnippet()}
+                title="Click to copy"
+              >
+                {mcpCopied ? "Copied!" : mcpSnippet}
+              </div>
+            )}
           </>
         )}
       </div>
