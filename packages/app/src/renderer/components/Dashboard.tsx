@@ -44,8 +44,10 @@ function FolderCard({ dir, excludePatterns, onPause, onResume, onReindex, onRemo
   const [newPattern, setNewPattern] = useState("");
 
   const addPattern = () => {
-    const p = newPattern.trim();
-    if (p && !excludePatterns.includes(p)) { onUpdateExcludes([...excludePatterns, p]); }
+    // Split on whitespace/commas so ".git .obsidian Archives" adds 3 patterns, not 1
+    const incoming = newPattern.trim().split(/[\s,]+/).filter(Boolean);
+    const toAdd = incoming.filter(p => !excludePatterns.includes(p));
+    if (toAdd.length > 0) onUpdateExcludes([...excludePatterns, ...toAdd]);
     setNewPattern("");
   };
 
@@ -128,21 +130,24 @@ export function Dashboard() {
 
   const updateDirExcludes = useCallback(async (dirPath: string, patterns: string[]) => {
     try {
-      const cfg = await window.anamnesis.getConfig() as { dirExcludePatterns?: Record<string, string[]> };
-      const updated = { ...(cfg.dirExcludePatterns ?? {}), [dirPath]: patterns };
+      const updated = { ...dirExcludes, [dirPath]: patterns };
       await window.anamnesis.saveConfig({ dirExcludePatterns: updated });
       setDirExcludes(updated);
     } catch { /* ignore */ }
-  }, []);
+  }, [dirExcludes]);
 
   const removeDir = useCallback(async (dirPath: string) => {
     try {
       const cfg = await window.anamnesis.getConfig() as { watchDirs?: string[] };
-      const updated = (cfg.watchDirs ?? []).filter(d => d !== dirPath);
-      await window.anamnesis.saveConfig({ watchDirs: updated });
+      const updatedDirs = (cfg.watchDirs ?? []).filter(d => d !== dirPath);
+      // Also clean up orphaned per-folder exclude patterns
+      const updatedExcludes = { ...dirExcludes };
+      delete updatedExcludes[dirPath];
+      await window.anamnesis.saveConfig({ watchDirs: updatedDirs, dirExcludePatterns: updatedExcludes });
+      setDirExcludes(updatedExcludes);
       await refreshDirs();
     } catch { /* ignore */ }
-  }, [refreshDirs]);
+  }, [refreshDirs, dirExcludes]);
 
   // Bootstrap
   useEffect(() => {
@@ -374,13 +379,21 @@ function AddFolderRow({ onAdded }: { onAdded: () => void }) {
   const add = async () => {
     const dir = folderPath.trim();
     if (!dir) return;
+    // Must be an absolute path: Windows drive (C:\) or Unix root (/)
+    const isAbsolute = /^[A-Za-z]:[/\\]/.test(dir) || dir.startsWith("/") || dir.startsWith("\\\\");
+    if (!isAbsolute) {
+      setError("Please enter an absolute folder path (e.g. C:\\Users\\… or /home/…)");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const cfg = await window.anamnesis.getConfig() as { watchDirs?: string[] };
       const current = cfg.watchDirs ?? [];
-      if (!current.includes(dir)) {
-        await window.anamnesis.saveConfig({ watchDirs: [...current, dir] });
+      // Normalize trailing slash for dedup check
+      const normalize = (p: string) => p.replace(/[/\\]+$/, "");
+      if (!current.some(d => normalize(d) === normalize(dir))) {
+        await window.anamnesis.saveConfig({ watchDirs: [...current, normalize(dir)] });
       }
       setFolderPath("");
       onAdded();
