@@ -42,6 +42,7 @@ function FolderCard({ dir, excludePatterns, onPause, onResume, onReindex, onRemo
 }) {
   const [excludesOpen, setExcludesOpen] = useState(false);
   const [newPattern, setNewPattern] = useState("");
+  const [reindexBusy, setReindexBusy] = useState(false);
 
   const addPattern = () => {
     // Split on whitespace/commas so ".git .obsidian Archives" adds 3 patterns, not 1
@@ -100,7 +101,12 @@ function FolderCard({ dir, excludePatterns, onPause, onResume, onReindex, onRemo
           ? <button className="btn" onClick={onResume} title="Resume monitoring">▶ Resume</button>
           : <button className="btn" onClick={onPause} title="Pause monitoring">⏸ Pause</button>
         }
-        <button className="btn" onClick={onReindex} title="Re-index this folder">⟳ Re-index</button>
+        <button
+          className="btn"
+          disabled={reindexBusy}
+          onClick={() => { setReindexBusy(true); onReindex(); setTimeout(() => setReindexBusy(false), 30_000); }}
+          title="Re-index this folder"
+        ><span className={reindexBusy ? "spin" : ""}>⟳</span> {reindexBusy ? "Re-indexing…" : "Re-index"}</button>
       </div>
     </div>
   );
@@ -114,12 +120,30 @@ export function Dashboard() {
   const [mcpSnippetOpen, setMcpSnippetOpen] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [reindexError, setReindexError] = useState<string | null>(null);
+  const [reindexPending, setReindexPending] = useState(false);
   const countdownRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
+  const prevDaemonStatusRef = useRef<string | undefined>(undefined);
+  const rapidPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshDirs = useCallback(async () => {
     try { setDirs(await window.anamnesis.getDirs() as DirInfo[]); } catch { /* ignore */ }
   }, []);
+
+  const stopRapidPoll = useCallback(() => {
+    if (rapidPollRef.current !== null) { clearInterval(rapidPollRef.current); rapidPollRef.current = null; }
+  }, []);
+
+  const handleStatusPayload = useCallback((incoming: StatusPayload) => {
+    setPayload(incoming);
+    const idxState = incoming.indexStatus?.state;
+    // Any confirmation from the daemon clears the pending spinner
+    if (idxState === "indexing" || idxState === "idle") {
+      setReindexPending(false);
+      stopRapidPoll();
+    }
+    if (idxState === "idle") void refreshDirs();
+  }, [stopRapidPoll, refreshDirs]);
 
   const refreshDirExcludes = useCallback(async () => {
     try {
@@ -152,19 +176,22 @@ export function Dashboard() {
   // Bootstrap
   useEffect(() => {
     void (async () => {
-      try { setPayload(await window.anamnesis.getStatus() as StatusPayload); } catch { /* ignore */ }
+      try { handleStatusPayload(await window.anamnesis.getStatus() as StatusPayload); } catch { /* ignore */ }
       await Promise.all([refreshDirs(), refreshDirExcludes()]);
     })();
 
     const unsub = window.anamnesis.onStatusUpdate((p) => {
-      setPayload(p as StatusPayload);
-      // Refresh dir chunk counts after an idle transition
-      const idx = (p as StatusPayload).indexStatus;
-      if (idx?.state === "idle") void refreshDirs();
+      const incoming = p as StatusPayload;
+      // Refresh dirs when daemon first transitions to running
+      const prev = prevDaemonStatusRef.current;
+      const current = incoming.status;
+      prevDaemonStatusRef.current = current;
+      if (prev !== "running" && current === "running") void refreshDirs();
+      handleStatusPayload(incoming);
     });
 
-    return () => { unsub(); if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
-  }, [refreshDirs]);
+    return () => { unsub(); stopRapidPoll(); if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+  }, [refreshDirs, handleStatusPayload, stopRapidPoll]);
 
   // Countdown animation for queued state
   useEffect(() => {
@@ -262,14 +289,24 @@ export function Dashboard() {
           {!daemonDown && !daemonStarting && (state === "idle" || state === "error") && (
             <button
               className="btn btn-primary"
-              disabled={dirs.length === 0}
+              disabled={dirs.length === 0 || reindexPending}
               title={dirs.length === 0 ? "Add a folder first" : undefined}
               onClick={async () => {
                 setReindexError(null);
-                try { await window.anamnesis.reindex(); }
-                catch (e) { setReindexError(String(e)); }
+                setReindexPending(true);
+                try {
+                  await window.anamnesis.reindex();
+                  // Poll every 500ms so we catch the indexing state quickly
+                  // instead of waiting up to 3s for the background poller
+                  rapidPollRef.current = setInterval(async () => {
+                    try { handleStatusPayload(await window.anamnesis.getStatus() as StatusPayload); }
+                    catch { /* ignore */ }
+                  }, 500);
+                  setTimeout(stopRapidPoll, 30_000); // safety ceiling
+                }
+                catch (e) { setReindexError(String(e)); setReindexPending(false); stopRapidPoll(); }
               }}
-            >⟳ Re-index All</button>
+            ><span className={reindexPending ? "spin" : ""}>⟳</span> {reindexPending ? "Starting…" : "Re-index All"}</button>
           )}
           {!daemonDown && !daemonStarting && state === "queued" && (
             <>

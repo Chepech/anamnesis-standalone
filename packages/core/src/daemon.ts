@@ -207,10 +207,12 @@ function startMgmtServer(port: number): http.Server {
 
     if (req.method === "GET" && url.pathname === "/dirs") {
       void db.getChunkCountsByDir().then((fileCounts) => {
+        const normPath = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
         const dirChunks = new Map<string, number>();
         for (const [fp, count] of fileCounts) {
+          const fpNorm = normPath(fp);
           for (const dir of config.watchDirs) {
-            if (fp.startsWith(dir)) {
+            if (fpNorm.startsWith(normPath(dir) + "/")) {
               dirChunks.set(dir, (dirChunks.get(dir) ?? 0) + count);
               break;
             }
