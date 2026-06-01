@@ -68,10 +68,13 @@ export function Search() {
     if (!trimmed) { setResults([]); setStatus(""); return; }
     setStatus("Searching…");
     try {
-      const hits = await window.anamnesis.search(trimmed) as SearchResult[];
+      const raw = await window.anamnesis.search(trimmed);
+      if (!Array.isArray(raw)) throw new Error((raw as { error?: string })?.error ?? "Unexpected response from search");
+      const hits = raw as SearchResult[];
       setResults(hits);
       setStatus(hits.length === 0 ? "No results." : `${hits.length} result${hits.length !== 1 ? "s" : ""}`);
     } catch (e) {
+      setResults([]);
       setStatus(`Error: ${String(e)}`);
     }
   }, []);
