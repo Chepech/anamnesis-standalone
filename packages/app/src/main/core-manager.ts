@@ -201,15 +201,24 @@ export class CoreManager {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
-  private get<T>(endpoint: string): Promise<T> {
+  private get<T>(endpoint: string, timeoutMs = 30_000): Promise<T> {
     return new Promise((resolve, reject) => {
       const req = http.get(`http://127.0.0.1:${this.mgmtPort}${endpoint}`, (res) => {
         let body = "";
         res.on("data", (c: Buffer) => { body += c; });
-        res.on("end", () => { try { resolve(JSON.parse(body) as T); } catch { reject(new Error("bad json")); } });
+        res.on("end", () => {
+          let parsed: unknown;
+          try { parsed = JSON.parse(body); } catch { reject(new Error("bad json")); return; }
+          if ((res.statusCode ?? 200) >= 400) {
+            const msg = (parsed as { error?: string })?.error ?? `HTTP ${res.statusCode}`;
+            reject(new Error(msg));
+          } else {
+            resolve(parsed as T);
+          }
+        });
       });
       req.on("error", reject);
-      req.setTimeout(5_000, () => req.destroy());
+      req.setTimeout(timeoutMs, () => req.destroy());
     });
   }
 

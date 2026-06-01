@@ -125,6 +125,28 @@ export class VectorDB {
     return rows as ChunkRecord[];
   }
 
+  async getVectorSample(maxFiles = 2000): Promise<{ file_path: string; vector: number[]; text: string }[]> {
+    if (!this.db) throw new Error("DB not connected");
+    const tableNames = await this.db.tableNames();
+    if (!tableNames.includes(CHUNKS_TABLE)) return [];
+    const table = await this.db.openTable(CHUNKS_TABLE);
+    // Fetch only the first chunk per file to keep payload small
+    const rows = await table.query()
+      .where("chunk_index = 0")
+      .select(["file_path", "vector", "text"])
+      .toArray();
+    const seen = new Set<string>();
+    const result: { file_path: string; vector: number[]; text: string }[] = [];
+    for (const row of rows) {
+      const r = row as { file_path: string; vector: ArrayLike<number>; text: string };
+      if (!r.file_path || seen.has(r.file_path)) continue;
+      seen.add(r.file_path);
+      result.push({ file_path: r.file_path, vector: Array.from(r.vector), text: r.text?.slice(0, 120) ?? "" });
+      if (result.length >= maxFiles) break;
+    }
+    return result;
+  }
+
   async search(vector: number[], limit = 10, importanceWeight = 0): Promise<ChunkRecord[]> {
     if (!this.db) throw new Error("DB not connected");
     const table = await this.db.openTable(CHUNKS_TABLE);

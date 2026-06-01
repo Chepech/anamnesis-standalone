@@ -255,12 +255,9 @@ function startMgmtServer(port: number): http.Server {
     // ── Vector graph endpoint ─────────────────────────────────────────────────
 
     if (req.method === "GET" && url.pathname === "/vectors") {
-      void db.getAllChunks().then((chunks) => {
-        // Dedupe to one chunk per file (first chunk, has representative vector)
-        const seen = new Set<string>();
-        const nodes = chunks
-          .filter((c) => { if (seen.has(c.file_path)) return false; seen.add(c.file_path); return true; })
-          .map((c) => ({ id: c.file_path, vector: Array.from(c.vector as unknown as ArrayLike<number>), text: c.text?.slice(0, 120) ?? "" }));
+      const maxFiles = Math.min(parseInt(url.searchParams.get("limit") ?? "2000", 10), 5000);
+      void db.getVectorSample(maxFiles).then((sample) => {
+        const nodes = sample.map((s) => ({ id: s.file_path, vector: s.vector, text: s.text }));
         res.end(JSON.stringify({ nodes }));
       }).catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
       return;
