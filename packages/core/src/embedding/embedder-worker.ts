@@ -36,11 +36,12 @@ parentPort.on("message", async (msg: MainToWorkerMsg) => {
         throw new Error(`Unsupported model: ${msg.modelName} (mapped to ${mapping.enum})`);
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       model = await fastembed.FlagEmbedding.init({
-        model: modelEnum,
+        model: modelEnum as any,
         cacheDir: msg.cacheDir,
         showDownloadProgress: false,
-      });
+      } as any);
 
       parentPort!.postMessage({ type: "ready" });
     } catch (err: unknown) {
