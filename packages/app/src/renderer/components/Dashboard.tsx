@@ -145,10 +145,15 @@ export function Dashboard() {
     if (idxState === "idle") void refreshDirs();
   }, [stopRapidPoll, refreshDirs]);
 
+  const [globalExcludes, setGlobalExcludes] = useState<string[]>([]);
+  const [globalExcludesOpen, setGlobalExcludesOpen] = useState(false);
+  const [newGlobalPattern, setNewGlobalPattern] = useState("");
+
   const refreshDirExcludes = useCallback(async () => {
     try {
-      const cfg = await window.anamnesis.getConfig() as { dirExcludePatterns?: Record<string, string[]> };
+      const cfg = await window.anamnesis.getConfig() as { dirExcludePatterns?: Record<string, string[]>; excludePatterns?: string[] };
       setDirExcludes(cfg.dirExcludePatterns ?? {});
+      setGlobalExcludes(cfg.excludePatterns ?? []);
     } catch { /* ignore */ }
   }, []);
 
@@ -159,6 +164,13 @@ export function Dashboard() {
       setDirExcludes(updated);
     } catch { /* ignore */ }
   }, [dirExcludes]);
+
+  const updateGlobalExcludes = useCallback(async (patterns: string[]) => {
+    try {
+      await window.anamnesis.saveConfig({ excludePatterns: patterns });
+      setGlobalExcludes(patterns);
+    } catch { /* ignore */ }
+  }, []);
 
   const removeDir = useCallback(async (dirPath: string) => {
     try {
@@ -343,6 +355,52 @@ export function Dashboard() {
         ))}
 
         <AddFolderRow onAdded={refreshDirs} />
+
+        {/* Global exclude patterns — collapsible */}
+        <div style={{ borderTop: "1px solid var(--purple-arm, #333)", marginTop: 10, paddingTop: 8 }}>
+          <button
+            className="btn"
+            style={{ alignSelf: "flex-start", fontSize: 11 }}
+            onClick={() => setGlobalExcludesOpen(o => !o)}
+          >
+            {globalExcludesOpen ? "▾" : "▸"} Global exclude patterns{globalExcludes.length > 0 ? ` (${globalExcludes.length})` : ""}
+          </button>
+
+          {globalExcludesOpen && (
+            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--fg-3, #888)" }}>Applied to all watched folders</span>
+              {globalExcludes.length === 0 && (
+                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>No global patterns set.</span>
+              )}
+              {globalExcludes.map((p, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, flex: 1 }}>{p}</span>
+                  <button className="btn-remove" onClick={() => updateGlobalExcludes(globalExcludes.filter((_, j) => j !== i))} title="Remove">×</button>
+                </div>
+              ))}
+              <div className="add-folder-row" style={{ marginTop: 4 }}>
+                <input
+                  className="folder-input"
+                  placeholder="e.g. .git, node_modules, Archives"
+                  value={newGlobalPattern}
+                  onChange={(e) => setNewGlobalPattern(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") {
+                    const incoming = newGlobalPattern.trim().split(/[\s,]+/).filter(Boolean);
+                    const toAdd = incoming.filter(p => !globalExcludes.includes(p));
+                    if (toAdd.length > 0) void updateGlobalExcludes([...globalExcludes, ...toAdd]);
+                    setNewGlobalPattern("");
+                  }}}
+                />
+                <button className="btn btn-primary" onClick={() => {
+                  const incoming = newGlobalPattern.trim().split(/[\s,]+/).filter(Boolean);
+                  const toAdd = incoming.filter(p => !globalExcludes.includes(p));
+                  if (toAdd.length > 0) void updateGlobalExcludes([...globalExcludes, ...toAdd]);
+                  setNewGlobalPattern("");
+                }} disabled={!newGlobalPattern.trim()}>Add</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── MCP server ───────────────────────────────────────────── */}

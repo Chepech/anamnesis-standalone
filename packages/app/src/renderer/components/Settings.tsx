@@ -297,16 +297,6 @@ export function Settings() {
           </div>
         </div>
 
-        {/* ── Exclude Patterns ─────────────────────────────────────── */}
-        <div className="card">
-          <div className="card-label">Exclude Patterns</div>
-          <span className="form-hint-block">One glob pattern per line (.git, node_modules, etc.)</span>
-          <textarea className="textarea-input" rows={4}
-            value={draft.excludePatterns.join("\n")}
-            onChange={e => patch("excludePatterns", e.target.value.split("\n"))}
-            onBlur={e => patch("excludePatterns", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
-          />
-        </div>
 
         {/* ── Search ───────────────────────────────────────────────── */}
         <div className="card">
