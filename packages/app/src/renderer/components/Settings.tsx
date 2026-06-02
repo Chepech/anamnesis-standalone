@@ -15,6 +15,7 @@ interface AnamnesisConfig {
   indexingDebounceMs: number;
   fileTypes: FileTypes;
   hybridSearch: boolean;
+  searchResultsLimit: number;
   importanceWeight: number;
   mcpEnabled: boolean;
   mcpPort: number;
@@ -33,9 +34,10 @@ const DEFAULT_CONFIG: AnamnesisConfig = {
   indexingDebounceMs: 5000,
   fileTypes: { markdown: true, pdf: true, docx: true, html: false },
   hybridSearch: true,
+  searchResultsLimit: 35,
   importanceWeight: 0.05,
   mcpEnabled: true,
-  mcpPort: 8868,
+  mcpPort: 8867,
 };
 
 const LOCAL_MODELS = [
@@ -318,6 +320,19 @@ export function Settings() {
                 onChange={e => patch("hybridSearch", e.target.checked)} />
               <span className="toggle-track" />
             </label>
+          </div>
+
+          <div className="form-row">
+            <div className="form-label-stack">
+              <span className="form-label">Results limit</span>
+              <span className="form-hint">Max results per search</span>
+            </div>
+            <div className="slider-row">
+              <input type="range" className="slider" min={1} max={100} step={1}
+                value={draft.searchResultsLimit}
+                onChange={e => patch("searchResultsLimit", Number(e.target.value))} />
+              <span className="slider-val">{draft.searchResultsLimit}</span>
+            </div>
           </div>
 
           <div className="form-row">

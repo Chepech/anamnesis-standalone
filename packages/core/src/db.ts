@@ -131,8 +131,10 @@ export class VectorDB {
     if (!tableNames.includes(CHUNKS_TABLE)) return [];
     const table = await this.db.openTable(CHUNKS_TABLE);
     // Fetch only the first chunk per file to keep payload small
+    const total = await table.countRows();
     const rows = await table.query()
       .where("chunk_index = 0")
+      .limit(Math.max(total, 1))
       .select(["file_path", "vector", "text"])
       .toArray();
     const seen = new Set<string>();

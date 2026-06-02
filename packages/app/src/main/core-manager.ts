@@ -38,7 +38,7 @@ export class CoreManager {
   private logStream: fs.WriteStream | null = null;
   readonly logPath: string;
 
-  constructor(configPath: string, logPath: string, mcpPort = 8868) {
+  constructor(configPath: string, logPath: string, mcpPort = 8867) {
     this.configPath = configPath;
     this.logPath = logPath;
     this.mcpPort = mcpPort;
@@ -139,7 +139,11 @@ export class CoreManager {
 
   // ── MCP ───────────────────────────────────────────────────────────────────
 
-  async startMcp(): Promise<void> { await this.post("/mcp/start"); }
+  async startMcp(): Promise<void> {
+    console.log("[Anamnesis:CoreManager] Starting MCP server via http://127.0.0.1:" + this.mgmtPort + "/mcp/start");
+    await this.post("/mcp/start");
+    console.log("[Anamnesis:CoreManager] MCP server started successfully");
+  }
   async stopMcp(): Promise<void> { await this.post("/mcp/stop"); }
 
   // ── Graph vectors ─────────────────────────────────────────────────────────
@@ -217,7 +221,11 @@ export class CoreManager {
           }
         });
       });
-      req.on("error", reject);
+      req.on("error", (err) => {
+        console.error("[Anamnesis:CoreManager] HTTP GET error on", endpoint, ":", err.message, "(connecting to port", this.mgmtPort, ")");
+        console.error("[Anamnesis:CoreManager] Full error:", err);
+        reject(err);
+      });
       req.setTimeout(timeoutMs, () => req.destroy());
     });
   }
@@ -242,7 +250,11 @@ export class CoreManager {
           });
         }
       );
-      req.on("error", reject);
+      req.on("error", (err) => {
+        console.error("[Anamnesis:CoreManager] HTTP POST error on", endpoint, ":", err.message, "(connecting to port", this.mgmtPort, ")");
+        console.error("[Anamnesis:CoreManager] Full error:", err);
+        reject(err);
+      });
       req.setTimeout(5_000, () => req.destroy());
       if (body) req.write(body);
       req.end();

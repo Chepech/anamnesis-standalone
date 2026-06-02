@@ -1,7 +1,7 @@
 {
   "name": "@anamnesis/app",
   "version": "0.1.0",
-  "description": "Anamnesis tray app — Electron desktop interface",
+  "description": "Anamnesis tray app \u2014 Electron desktop interface",
   "repository": {
     "type": "git",
     "url": "https://github.com/Chepech/anamnesis-standalone.git"
@@ -39,33 +39,64 @@
     "appId": "dev.anamnesis.app",
     "productName": "Anamnesis",
     "artifactName": "${productName}-${version}-${arch}.${ext}",
-    "asar": true,
-    "files": ["dist/**/*", "renderer/**/*"],
+    "asar": false,
+    "npmRebuild": false,
+    "files": [
+      "dist/**/*",
+      "renderer/**/*"
+    ],
     "extraResources": [
-      { "from": "../core/dist/", "to": "core/", "filter": ["**/*"] },
-      { "from": ".deploy-core/node_modules/", "to": "core/node_modules/", "filter": ["**/*"] },
-      { "from": "../../assets/", "to": "assets/", "filter": ["**/*"] }
+      {
+        "from": "../core/dist/",
+        "to": "core/",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".deploy-core/node_modules/",
+        "to": "core/node_modules/",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../assets/",
+        "to": "assets/",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "icon": "../../assets/AnamnesisLogo.png",
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility",
       "maintainer": "Hector Nevarez <chepech@gmail.com>"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.utilities"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "differentialPackage": false
     },
     "publish": {
       "provider": "github",
       "releaseType": "draft"
-    }
+    },
+    "asarUnpack": []
   }
 }

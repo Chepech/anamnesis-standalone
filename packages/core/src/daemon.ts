@@ -57,11 +57,15 @@ async function boot(): Promise<void> {
     provider = new LocalEmbeddingProvider(workerPath, config.localModelName, path.join(path.dirname(configPath), "models"),
       (msg) => console.log("[Anamnesis] Embedder:", msg));
   }
+  console.log("[Anamnesis] Initializing embedding provider...");
   await provider.initialize();
+  console.log("[Anamnesis] Embedding provider initialized successfully");
 
   // ── Vector DB ─────────────────────────────────────────────────────────────
+  console.log("[Anamnesis] Connecting to vector database...");
   db = new VectorDB(config.dataDir, provider.dimension);
   await db.connect();
+  console.log("[Anamnesis] Vector database connected at", config.dataDir);
 
   // Check for schema/dim mismatch → trigger re-index
   const storedDim = await db.getStoredDim();
@@ -84,17 +88,22 @@ async function boot(): Promise<void> {
   void fts.rebuildFromDB(db).catch((e) => console.warn("[Anamnesis] FTS rebuild failed:", e));
 
   // ── File watcher ──────────────────────────────────────────────────────────
+  console.log("[Anamnesis] Initializing file watcher...");
   watcher = new FileWatcher(indexer, config);
   if (config.autoIndexOnChange) watcher.start();
+    console.log("[Anamnesis] File watcher started on:", config.watchDirs);
 
   // ── MCP server ────────────────────────────────────────────────────────────
-  mcp = new AnamnesisServerMCP(search);
+  console.log("[Anamnesis] Starting MCP server on port", config.mcpPort, "...");
+  mcp = new AnamnesisServerMCP(search, config.searchResultsLimit);
   if (config.mcpEnabled) {
-    await mcp.start(config.mcpPort).catch((e) => console.error("[Anamnesis] MCP start failed:", e));
+    const mcpError = await mcp.start(config.mcpPort).catch((e) => { console.error("[Anamnesis] MCP server failed to start:", e); return e; });
+    if (!mcpError) console.log("[Anamnesis] MCP server started successfully");
   }
 
   // ── Management API ────────────────────────────────────────────────────────
   const mgmtPort = config.mcpPort + 1;
+  console.log("[Anamnesis] Starting management API on port", mgmtPort, "...");
   mgmtServer = startMgmtServer(mgmtPort);
   console.log(`[Anamnesis] Management API on http://127.0.0.1:${mgmtPort}`);
 
@@ -277,7 +286,7 @@ function startMgmtServer(port: number): http.Server {
 
     if (req.method === "GET" && url.pathname === "/search") {
       const q = url.searchParams.get("q") ?? "";
-      const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "15", 10), 50);
+      const limit = Math.min(parseInt(url.searchParams.get("limit") ?? String(config.searchResultsLimit), 10), 100);
       if (!q) { res.writeHead(400); res.end(JSON.stringify({ error: "q is required" })); return; }
       void search.search(q, limit)
         .then((results) => res.end(JSON.stringify(results)))
@@ -299,6 +308,7 @@ function startMgmtServer(port: number): http.Server {
           const prevDirExclude = JSON.stringify(config.dirExcludePatterns ?? {});
           config = { ...config, ...updated };
           indexer.updateConfig(config);
+          mcp.searchLimit = config.searchResultsLimit;
           saveConfig(config, configPath);
 
           // Dynamically add newly configured watch dirs

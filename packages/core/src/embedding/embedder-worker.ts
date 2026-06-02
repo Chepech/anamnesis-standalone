@@ -17,6 +17,11 @@ parentPort.on("message", async (msg: MainToWorkerMsg) => {
   if (msg.type === "init") {
     try {
       if (!Transformers) Transformers = await import("@xenova/transformers");
+// Force WASM backend instead of onnxruntime-node for cross-platform compatibility
+      Transformers.env.backends.onnx.wasm.numThreads = 1;
+      Transformers.env.allowLocalModels = false;
+      Transformers.env.allowRemoteModels = true;
+      Transformers.env.useBrowserCache = false;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       Transformers.env.cacheDir = msg.cacheDir;
       // In Node.js, ONNX can load WASM from the local cache directly — no Blob URL tricks needed

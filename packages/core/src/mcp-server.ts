@@ -13,10 +13,14 @@ export class AnamnesisServerMCP {
   private _status: McpStatus = "stopped";
   private _port = 0;
   private _error = "";
+  private _searchLimit: number;
 
-  constructor(hybridSearch: HybridSearchEngine) {
+  constructor(hybridSearch: HybridSearchEngine, searchLimit = 35) {
     this.hybridSearch = hybridSearch;
+    this._searchLimit = searchLimit;
   }
+
+  set searchLimit(limit: number) { this._searchLimit = limit; }
 
   get status(): McpStatus { return this._status; }
   get port(): number { return this._port; }
@@ -84,7 +88,7 @@ export class AnamnesisServerMCP {
           "Hybrid semantic + keyword search over indexed files. Combines vector similarity with BM25 via Reciprocal Rank Fusion.",
         inputSchema: {
           query: z.string().min(1).describe("Natural language search query"),
-          limit: z.number().int().min(1).max(50).default(10).describe("Maximum results (default 10, max 50)"),
+          limit: z.number().int().min(1).max(100).default(this._searchLimit).describe(`Maximum results (default ${this._searchLimit}, max 100)`),
         },
       },
       async ({ query, limit }) => {

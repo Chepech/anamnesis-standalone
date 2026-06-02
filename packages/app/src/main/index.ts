@@ -25,7 +25,18 @@ let windowsManager: WindowsManager;
 app.on("ready", async () => {
   app.dock?.hide();
 
-  coreManager = new CoreManager(configPath, logPath);
+  // Read mcpPort from config file to ensure UI and daemon use the same ports
+  let mcpPort = 8867; // default from config schema
+  try {
+    const configData = JSON.parse(fs.readFileSync(configPath, "utf-8")) as { mcpPort?: number };
+    if (typeof configData.mcpPort === "number") {
+      mcpPort = configData.mcpPort;
+    }
+  } catch (err) {
+    console.warn("[Anamnesis] Could not read mcpPort from config, using default 8867");
+  }
+
+  coreManager = new CoreManager(configPath, logPath, mcpPort);
   windowsManager = new WindowsManager();
   trayManager = new TrayManager(coreManager, windowsManager);
 
@@ -41,12 +52,6 @@ app.on("ready", async () => {
   try { await coreManager.start(); }
   catch (err) { console.error("[Anamnesis] Failed to start core daemon:", err); }
 });
-
-// ── IPC handlers ──────────────────────────────────────────────────────────────
-
-ipcMain.handle("get-config-path", () => configPath);
-ipcMain.handle("core-status", () => coreManager.payload);
-
 ipcMain.handle("core-restart", () => coreManager.restart())
 ipcMain.handle("core-reindex", () => coreManager.reindex());
 ipcMain.handle("core-pause", () => coreManager.pause());
