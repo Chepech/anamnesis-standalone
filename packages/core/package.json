@@ -1,6 +1,6 @@
 {
   "name": "@anamnesis/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Anamnesis core — headless indexing daemon and MCP server",
   "main": "dist/daemon.js",
   "bin": {
