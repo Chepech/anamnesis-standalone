@@ -6,6 +6,10 @@ import type { EmbeddingProvider, WorkerToMainMsg } from "./bridge.js";
 export const LOCAL_MODEL_DIM: Record<string, number> = {
   "Xenova/all-MiniLM-L6-v2": 384,
   "Xenova/all-mpnet-base-v2": 768,
+  "Xenova/paraphrase-MiniLM-L3-v2": 384,
+  "BAAI/bge-base-en-v1.5": 768,
+  "BAAI/bge-small-en-v1.5": 384,
+  "sentence-transformers/all-MiniLM-L6-v2": 384,
 };
 
 type PendingEmbed = {

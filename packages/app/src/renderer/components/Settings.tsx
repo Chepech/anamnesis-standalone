@@ -42,8 +42,8 @@ const DEFAULT_CONFIG: AnamnesisConfig = {
 
 const LOCAL_MODELS = [
   { value: "Xenova/all-MiniLM-L6-v2", label: "all-MiniLM-L6-v2 (384d, fast)" },
-  { value: "Xenova/all-mpnet-base-v2", label: "all-mpnet-base-v2 (768d, better quality)" },
-  { value: "Xenova/paraphrase-MiniLM-L3-v2", label: "paraphrase-MiniLM-L3-v2 (384d, fastest)" },
+  { value: "BAAI/bge-base-en-v1.5", label: "bge-base-en-v1.5 (768d, better quality)" },
+  { value: "BAAI/bge-small-en-v1.5", label: "bge-small-en-v1.5 (384d, smallest)" },
 ];
 
 const OPENAI_MODELS = [

@@ -1,6 +1,6 @@
 /**
- * Embedder worker — runs @xenova/transformers in a separate Node.js worker thread.
- * Uses worker_threads parentPort instead of the browser's self/postMessage.
+ * Embedder worker — runs fastembed in a separate Node.js worker thread.
+ * Uses worker_threads parentPort for communication with local.ts.
  */
 
 import { parentPort } from "worker_threads";
@@ -8,30 +8,38 @@ import type { MainToWorkerMsg } from "./bridge.js";
 
 if (!parentPort) throw new Error("Must run as a worker thread");
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let Transformers: any = null;
-let pipe: unknown = null;
+let model: any = null;
 let embDim = 384;
+
+const MODEL_MAP: Record<string, { enum: string; dim: number }> = {
+  "Xenova/all-MiniLM-L6-v2": { enum: "AllMiniLML6V2", dim: 384 },
+  "Xenova/paraphrase-MiniLM-L3-v2": { enum: "AllMiniLML6V2", dim: 384 },
+  "Xenova/all-mpnet-base-v2": { enum: "BGEBaseENV15", dim: 768 },
+  "BAAI/bge-base-en-v1.5": { enum: "BGEBaseENV15", dim: 768 },
+  "BAAI/bge-small-en-v1.5": { enum: "BGESmallENV15", dim: 384 },
+  "sentence-transformers/all-MiniLM-L6-v2": { enum: "AllMiniLML6V2", dim: 384 },
+};
 
 parentPort.on("message", async (msg: MainToWorkerMsg) => {
   if (msg.type === "init") {
     try {
-      if (!Transformers) Transformers = await import("@xenova/transformers");
-// Force WASM backend instead of onnxruntime-node for cross-platform compatibility
-      Transformers.env.backends.onnx.wasm.numThreads = 1;
-      Transformers.env.allowLocalModels = false;
-      Transformers.env.allowRemoteModels = true;
-      Transformers.env.useBrowserCache = false;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      Transformers.env.cacheDir = msg.cacheDir;
-      // In Node.js, ONNX can load WASM from the local cache directly — no Blob URL tricks needed
-      embDim = msg.dim ?? 384;
+      const mapping = MODEL_MAP[msg.modelName] ?? { enum: "AllMiniLML6V2", dim: 384 };
+      embDim = msg.dim ?? mapping.dim;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      pipe = await Transformers.pipeline("feature-extraction", msg.modelName, {
-        progress_callback: (p: { status: string; file?: string; progress?: number }) => {
-          parentPort!.postMessage({ type: "progress", status: p.status, file: p.file, progress: p.progress });
-        },
+      parentPort!.postMessage({ type: "progress", status: "downloading", file: msg.modelName });
+
+      const fastembed = await import("fastembed");
+      const EmbeddingModel = fastembed.EmbeddingModel;
+      const modelEnum = (EmbeddingModel as Record<string, string>)[mapping.enum];
+
+      if (!modelEnum) {
+        throw new Error(`Unsupported model: ${msg.modelName} (mapped to ${mapping.enum})`);
+      }
+
+      model = await fastembed.FlagEmbedding.init({
+        model: modelEnum,
+        cacheDir: msg.cacheDir,
+        showDownloadProgress: false,
       });
 
       parentPort!.postMessage({ type: "ready" });
@@ -40,11 +48,18 @@ parentPort.on("message", async (msg: MainToWorkerMsg) => {
     }
   } else if (msg.type === "embed") {
     try {
-      if (!pipe) throw new Error("Model not initialized");
-      type EmbedFn = (texts: string[], opts: { pooling: string; normalize: boolean }) => Promise<{ data: Float32Array }>;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      const output = await (pipe as unknown as EmbedFn)(msg.texts, { pooling: "mean", normalize: true });
-      const flat = Array.from(output.data);
+      if (!model) throw new Error("Model not initialized");
+
+      const allEmbeddings: number[][] = [];
+      for await (const batch of model.embed(msg.texts, 256)) {
+        allEmbeddings.push(...batch);
+      }
+
+      const flat: number[] = [];
+      for (const vec of allEmbeddings) {
+        for (let i = 0; i < vec.length; i++) flat.push(vec[i]);
+      }
+
       parentPort!.postMessage({ type: "result", id: msg.id, flat, dim: embDim });
     } catch (err: unknown) {
       parentPort!.postMessage({ type: "error", id: msg.id, message: err instanceof Error ? err.message : String(err) });
