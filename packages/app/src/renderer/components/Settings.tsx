@@ -199,8 +199,10 @@ export function Settings() {
                 Changing the model requires downloading it and rebuilding the full index. Existing vectors will be replaced.
               </span>
               <div className="btn-row" style={{ marginTop: 8 }}>
-                <button className="btn btn-primary" onClick={() => { /* accept — keep draft, warning clears on save */ }}>Accept</button>
-                <button className="btn" onClick={() => {
+                <button className="btn btn-primary" disabled={saving} onClick={() => void save()}>
+                  {saving ? "Saving…" : "Accept & Save"}
+                </button>
+                <button className="btn" disabled={saving} onClick={() => {
                   if (config) {
                     setDraft(d => d ? {
                       ...d,
@@ -395,7 +397,7 @@ export function Settings() {
       </div>
 
       {/* ── Save bar ─────────────────────────────────────────────── */}
-      <div className={`save-bar${(dirty || msg) ? " visible" : ""}`}>
+      <div className={`save-bar${((dirty && !modelChanged) || msg) ? " visible" : ""}`}>
         {msg
           ? <span className={`save-msg${msg.ok ? " ok" : " err"}`}>{msg.text}</span>
           : dirty
