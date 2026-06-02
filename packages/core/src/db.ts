@@ -107,7 +107,8 @@ export class VectorDB {
     const tableNames = await this.db.tableNames();
     if (!tableNames.includes(CHUNKS_TABLE)) return new Map();
     const table = await this.db.openTable(CHUNKS_TABLE);
-    const rows = await table.query().select(["file_path"]).toArray();
+    const total = await table.countRows();
+    const rows = await table.query().select(["file_path"]).limit(Math.max(total, 1)).toArray();
     const counts = new Map<string, number>();
     for (const row of rows) {
       const fp = (row as { file_path: string }).file_path;
