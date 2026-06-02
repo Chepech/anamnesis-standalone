@@ -88,16 +88,36 @@ ipcMain.handle("get-config", async () => {
 });
 
 ipcMain.handle("save-config", async (_e, partial: unknown) => {
+  const updates = partial as Record<string, unknown>;
+  let needsRestart = false;
+
+  // Detect model/provider changes that require daemon restart
+  try {
+    const prev = JSON.parse(fs.readFileSync(configPath, "utf-8")) as Record<string, unknown>;
+    if (
+      (updates.embeddingProvider !== undefined && updates.embeddingProvider !== prev.embeddingProvider) ||
+      (updates.localModelName !== undefined && updates.localModelName !== prev.localModelName) ||
+      (updates.openaiModelName !== undefined && updates.openaiModelName !== prev.openaiModelName)
+    ) {
+      needsRestart = true;
+    }
+  } catch { /* first run or unreadable — no restart needed */ }
+
   try {
     await coreManager.saveConfig(partial);
   } catch {
     // Daemon not running — write directly so changes persist and are picked up on next start
     let existing: Record<string, unknown> = {};
     try { existing = JSON.parse(fs.readFileSync(configPath, "utf-8")) as Record<string, unknown>; } catch { /* first run */ }
-    const updated = { ...existing, ...(partial as Record<string, unknown>) };
+    const updated = { ...existing, ...updates };
     const dir = path.dirname(configPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(configPath, JSON.stringify(updated, null, 2), "utf-8");
+  }
+
+  if (needsRestart && coreManager.status === "running") {
+    console.log("[Anamnesis] Embedding model/provider changed — restarting daemon...");
+    void coreManager.restart();
   }
 });
 

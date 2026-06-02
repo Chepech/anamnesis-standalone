@@ -109,7 +109,13 @@ async function boot(): Promise<void> {
 
   // ── Initial index ─────────────────────────────────────────────────────────
   if (needsReindex) {
-    console.log("[Anamnesis] Starting initial index...");
+    if (storedDim !== null && storedDim !== provider.dimension) {
+      console.log(`[Anamnesis] Embedding dimension changed (${storedDim} → ${provider.dimension}) — full reindex required`);
+    } else if (!config.initialIndexDone) {
+      console.log("[Anamnesis] First run — starting initial index...");
+    } else {
+      console.log("[Anamnesis] Schema changed — full reindex required");
+    }
     const ok = await indexer.indexAll();
     if (ok) {
       config.initialIndexDone = true;
