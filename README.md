@@ -17,7 +17,7 @@ No cloud. No subscriptions. Your files never leave your machine.
 - **Understands your documents** — parses Markdown, PDF, DOCX, and HTML into semantic chunks
 - **Hybrid search** — combines dense vector similarity (ONNX embeddings, fully local) with BM25 keyword ranking via Reciprocal Rank Fusion for results that are both semantically relevant and lexically precise
 - **Speaks MCP** — exposes a `search_vault`, `read_note`, and `list_indexed_files` tool over HTTP so any MCP-compatible AI agent can query your knowledge base mid-conversation
-- **Runs local embeddings** by default (no API key needed) using `all-MiniLM-L6-v2` via `@xenova/transformers`, or optionally delegates to OpenAI's `text-embedding-3-small`
+- **Runs local embeddings** by default (no API key needed) using `all-MiniLM-L6-v2` via `fastembed` (native ONNX runtime, no WASM), or optionally delegates to OpenAI's `text-embedding-3-small`
 - **Multiple vaults, multiple sources** — watch as many directories as you want simultaneously: an Obsidian vault, a folder of PDFs, a research directory, a work notes folder — all indexed together into one searchable corpus
 
 ![Anamnesis Stack](assets/Anamnesis-stack.png)
@@ -47,7 +47,7 @@ Open the control panel from the tray icon. On the **Dashboard** tab, add the dir
 Point any MCP-compatible agent at:
 
 ```
-http://127.0.0.1:8868/mcp
+http://127.0.0.1:8867/mcp
 ```
 
 The daemon exposes three tools:
@@ -64,7 +64,7 @@ The daemon exposes three tools:
 {
   "mcpServers": {
     "anamnesis": {
-      "url": "http://127.0.0.1:8868/mcp"
+      "url": "http://127.0.0.1:8867/mcp"
     }
   }
 }
@@ -77,7 +77,7 @@ The daemon exposes three tools:
   "mcpServers": {
     "anamnesis": {
       "type": "http",
-      "url": "http://127.0.0.1:8868/mcp"
+      "url": "http://127.0.0.1:8867/mcp"
     }
   }
 }
@@ -108,9 +108,9 @@ flowchart LR
         Custom["Custom Agent"]
     end
 
-    Daemon -- "MCP over HTTP\n:8868/mcp" --> Claude
-    Daemon -- "MCP over HTTP\n:8868/mcp" --> Cursor
-    Daemon -- "MCP over HTTP\n:8868/mcp" --> Custom
+    Daemon -- "MCP over HTTP\n:8867/mcp" --> Claude
+    Daemon -- "MCP over HTTP\n:8867/mcp" --> Cursor
+    Daemon -- "MCP over HTTP\n:8867/mcp" --> Custom
 ```
 
 The **Electron app** is a thin shell — it launches the daemon, shows status, and lets you manage config. The **daemon** is a standalone Node.js process that does all the real work: watching, parsing, embedding, indexing, and serving the MCP endpoint. Because the two are separate processes, the daemon can run headlessly if you prefer; the tray app is optional for power users.
@@ -151,13 +151,13 @@ With Anamnesis running, every conversation with Claude or any MCP-compatible age
 Open the **Settings** tab in the control panel to configure:
 
 - **Embedding provider** — local ONNX model (default, no API key) or OpenAI
-- **Local model** — choose between speed (`paraphrase-MiniLM-L3-v2`) and quality (`all-mpnet-base-v2`)
+- **Local model** — choose between `all-MiniLM-L6-v2` (384d, fast), `bge-base-en-v1.5` (768d, better quality), or `bge-small-en-v1.5` (384d, smallest)
 - **Chunk size and overlap** — controls how documents are split for indexing
 - **File types** — which extensions to index
 - **Auto-index on change** — debounce delay for re-indexing modified files
-- **Exclude patterns** — glob patterns to skip (`.git`, `node_modules`, etc.)
-- **Hybrid search** — toggle BM25+vector fusion; adjust importance weight
-- **MCP port** — default `8868`; change if there's a conflict
+- **Exclude patterns** — global and per-folder glob patterns to skip (`.git`, `node_modules`, etc.)
+- **Hybrid search** — toggle BM25+vector fusion; adjust importance weight and results limit
+- **MCP port** — default `8867`; change if there's a conflict
 
 ---
 
@@ -173,7 +173,24 @@ pnpm build
 pnpm --filter @anamnesis/app start   # dev mode
 ```
 
-To produce a native installer, push a version tag — GitHub Actions builds for Linux, macOS, and Windows in parallel and uploads installers to a draft release automatically.
+### Releasing
+
+Push a version tag to trigger the release workflow:
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+GitHub Actions builds for Linux, macOS, and Windows in parallel and uploads installers to a draft release automatically. Edit the draft and publish when ready.
+
+### Local Windows build
+
+Native modules (`onnxruntime-node`, `@lancedb/lancedb`, `@anush008/tokenizers`) require Windows-native binaries. Use the PowerShell build script which runs `npm install` on a Windows-local path then packages via WSL:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-anamnesis-native.ps1
+```
 
 ---
 
