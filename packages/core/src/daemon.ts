@@ -272,7 +272,7 @@ function startMgmtServer(port: number): http.Server {
     if (req.method === "GET" && url.pathname === "/vectors") {
       const maxFiles = Math.min(parseInt(url.searchParams.get("limit") ?? "2000", 10), 5000);
       void db.getVectorSample(maxFiles).then((sample) => {
-        const nodes = sample.map((s) => ({ id: s.file_path, vector: s.vector, text: s.text }));
+        const nodes = sample.map((s) => ({ id: s.file_path, vector: s.vector, text: s.text, tags: s.tags, last_modified: s.last_modified }));
         res.end(JSON.stringify({ nodes }));
       }).catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
       return;

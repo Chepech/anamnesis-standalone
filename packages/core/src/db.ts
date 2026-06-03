@@ -126,25 +126,24 @@ export class VectorDB {
     return rows as ChunkRecord[];
   }
 
-  async getVectorSample(maxFiles = 2000): Promise<{ file_path: string; vector: number[]; text: string }[]> {
+  async getVectorSample(maxFiles = 2000): Promise<{ file_path: string; vector: number[]; text: string; tags: string; last_modified: number }[]> {
     if (!this.db) throw new Error("DB not connected");
     const tableNames = await this.db.tableNames();
     if (!tableNames.includes(CHUNKS_TABLE)) return [];
     const table = await this.db.openTable(CHUNKS_TABLE);
-    // Fetch only the first chunk per file to keep payload small
     const total = await table.countRows();
     const rows = await table.query()
       .where("chunk_index = 0")
       .limit(Math.max(total, 1))
-      .select(["file_path", "vector", "text"])
+      .select(["file_path", "vector", "text", "tags", "last_modified"])
       .toArray();
     const seen = new Set<string>();
-    const result: { file_path: string; vector: number[]; text: string }[] = [];
+    const result: { file_path: string; vector: number[]; text: string; tags: string; last_modified: number }[] = [];
     for (const row of rows) {
-      const r = row as { file_path: string; vector: ArrayLike<number>; text: string };
+      const r = row as { file_path: string; vector: ArrayLike<number>; text: string; tags: string; last_modified: number };
       if (!r.file_path || seen.has(r.file_path)) continue;
       seen.add(r.file_path);
-      result.push({ file_path: r.file_path, vector: Array.from(r.vector), text: r.text?.slice(0, 120) ?? "" });
+      result.push({ file_path: r.file_path, vector: Array.from(r.vector), text: r.text?.slice(0, 120) ?? "", tags: r.tags ?? "", last_modified: r.last_modified ?? 0 });
       if (result.length >= maxFiles) break;
     }
     return result;
