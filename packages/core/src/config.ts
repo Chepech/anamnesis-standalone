@@ -11,7 +11,7 @@ export const ConfigSchema = z.object({
   openaiModelName: z.string().default("text-embedding-3-small"),
   chunkSize: z.number().int().min(64).max(4096).default(512),
   chunkOverlap: z.number().int().min(0).max(512).default(64),
-  excludePatterns: z.array(z.string()).default([".git", "node_modules", ".obsidian"]),
+  excludePatterns: z.array(z.string()).default([".git", "node_modules", ".obsidian", ".claude"]),
   autoIndexOnChange: z.boolean().default(true),
   indexingDebounceMs: z.number().int().min(500).max(300_000).default(5_000),
   fileTypes: z.object({

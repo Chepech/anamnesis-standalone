@@ -293,9 +293,12 @@ export class IndexingEngine {
 
     const fpNorm = filePath.replace(/\\/g, "/");
 
+    // Find the owning watch directory for correct relative path computation
+    const ownerDir = this.config.watchDirs.find((d) => fpNorm.startsWith(d.replace(/\\/g, "/") + "/")) ?? this.config.watchDirs[0] ?? "/";
+
     // Global exclude patterns
     if (this.config.excludePatterns.some((pattern) => {
-      const rel = path.relative(this.config.watchDirs[0] ?? "/", filePath);
+      const rel = path.relative(ownerDir, filePath);
       const patNorm = pattern.replace(/\\/g, "/");
       return minimatch(rel, pattern, { matchBase: true }) || fpNorm.includes(`/${patNorm}/`);
     })) return false;
@@ -365,6 +368,7 @@ export class IndexingEngine {
 
 function walkDir(dir: string, cb: (filePath: string) => void): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walkDir(full, cb);
     else if (entry.isFile()) cb(full);
