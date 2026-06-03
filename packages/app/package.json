@@ -39,11 +39,13 @@
     "appId": "dev.anamnesis.app",
     "productName": "Anamnesis",
     "artifactName": "${productName}-${version}-${arch}.${ext}",
-    "asar": false,
+    "asar": true,
     "npmRebuild": false,
     "files": [
-      "dist/**/*",
-      "renderer/**/*"
+      "dist/main/**/*",
+      "dist/preload/**/*",
+      "renderer/**/*",
+      "!node_modules"
     ],
     "extraResources": [
       {
