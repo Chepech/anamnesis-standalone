@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Component, type ReactNode, type ErrorInfo } from "react";
 import { Dashboard } from "./components/Dashboard.js";
 import { GraphPanel } from "./components/GraphPanel.js";
-import { Search } from "./components/Search.js";
 import { Settings } from "./components/Settings.js";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -29,7 +28,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
   }
 }
 
-type Tab = "dashboard" | "graph" | "search" | "settings";
+type Tab = "dashboard" | "graph" | "settings";
 
 interface StatusPayload {
   indexStatus?: { state?: string };
@@ -68,7 +67,6 @@ export function App() {
       <div className="tabs">
         <div className={`tab${tab === "dashboard" ? " active" : ""}`} onClick={() => setTab("dashboard")}>Dashboard</div>
         <div className={`tab${tab === "graph" ? " active" : ""}`} onClick={() => setTab("graph")}>Vector Graph</div>
-        <div className={`tab${tab === "search" ? " active" : ""}`} onClick={() => setTab("search")}>Search</div>
         <div className={`tab${tab === "settings" ? " active" : ""}`} onClick={() => setTab("settings")}>Settings</div>
       </div>
 
@@ -80,9 +78,6 @@ export function App() {
       </div>
       <div style={{ display: tab === "graph" ? "contents" : "none" }}>
         <ErrorBoundary><GraphPanel chunkCount={status.chunkCount ?? 0} /></ErrorBoundary>
-      </div>
-      <div style={{ display: tab === "search" ? "contents" : "none" }}>
-        <ErrorBoundary><Search /></ErrorBoundary>
       </div>
       <div style={{ display: tab === "settings" ? "contents" : "none" }}>
         <ErrorBoundary><Settings /></ErrorBoundary>

@@ -70,6 +70,16 @@ async function boot(): Promise<void> {
   // Check for schema/dim mismatch → trigger re-index
   const storedDim = await db.getStoredDim();
   const storedSchema = await db.getSchemaVersion();
+  const existingRows = await db.countRows();
+
+  // If DB already has data but initialIndexDone flag is false (upgrade/reinstall), skip reindex
+  if (!config.initialIndexDone && existingRows > 0 && storedDim === provider.dimension) {
+    config.initialIndexDone = true;
+    config.indexedVectorDim = provider.dimension;
+    saveConfig(config, configPath);
+    console.log(`[Anamnesis] Existing index found (${existingRows} chunks) — skipping reindex`);
+  }
+
   const needsReindex =
     config.watchDirs.length > 0 &&
     ((storedDim !== null && storedDim !== provider.dimension) ||
@@ -272,7 +282,7 @@ function startMgmtServer(port: number): http.Server {
     if (req.method === "GET" && url.pathname === "/vectors") {
       const maxFiles = Math.min(parseInt(url.searchParams.get("limit") ?? "2000", 10), 5000);
       void db.getVectorSample(maxFiles).then((sample) => {
-        const nodes = sample.map((s) => ({ id: s.file_path, vector: s.vector, text: s.text }));
+        const nodes = sample.map((s) => ({ id: s.file_path, vector: s.vector, text: s.text, tags: s.tags, last_modified: s.last_modified }));
         res.end(JSON.stringify({ nodes }));
       }).catch((e: unknown) => { res.writeHead(500); res.end(JSON.stringify({ error: String(e) })); });
       return;
