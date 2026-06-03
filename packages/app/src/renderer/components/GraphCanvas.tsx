@@ -222,7 +222,8 @@ export function GraphCanvas({ nodes, edges, renderMode, highlightSet, selectedIn
     const startPan = { ...s.pan };
     const startZoom = s.zoom;
     const targetZoom = Math.max(panTarget.zoom, s.zoom);
-    const targetPan = { x: 0.5 - panTarget.x * targetZoom / s.zoom, y: 0.5 - panTarget.y * targetZoom / s.zoom };
+    // To center node (nx, ny) in viewport: pan = 0.5/zoom - nodeCoord
+    const targetPan = { x: 0.5 / targetZoom - panTarget.x, y: 0.5 / targetZoom - panTarget.y };
 
     const duration = 300;
     const startTime = performance.now();
