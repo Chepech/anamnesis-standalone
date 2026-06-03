@@ -132,7 +132,8 @@ ipcMain.handle("open-log-file", async () => {
 
 ipcMain.handle("open-file-folder", async (_e, filePath: string) => {
   const { shell } = await import("electron");
-  shell.showItemInFolder(filePath);
+  const normalized = process.platform === "win32" ? filePath.replace(/\//g, "\\") : filePath;
+  shell.showItemInFolder(normalized);
 });
 
 ipcMain.handle("open-dir-dialog", async () => {

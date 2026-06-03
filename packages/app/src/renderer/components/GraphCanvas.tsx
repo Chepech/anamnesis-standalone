@@ -342,10 +342,12 @@ export function GraphCanvas({ nodes, edges, renderMode, highlightSet, selectedIn
       stateRef.current.dragging = false;
       canvas.style.cursor = "crosshair";
 
-      if (wasDragging && dragDist > 5) return;
+      if (!wasDragging) return;
+      if (dragDist > 5) return;
 
       const rect = canvas.getBoundingClientRect();
       const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+      if (cx < 0 || cy < 0 || cx > rect.width || cy > rect.height) return;
       const clicked = hitTest(cx, cy);
       onNodeClick(clicked);
     };

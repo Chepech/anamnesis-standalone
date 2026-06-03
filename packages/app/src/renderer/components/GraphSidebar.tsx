@@ -163,7 +163,7 @@ export function GraphSidebar({ nodes, selectedIndex, neighbors, onSelectNode, on
               ← {hasActiveSearch ? "Back to results" : "Back"}
             </div>
             <div className="graph-detail-title">{selectedNode.label}</div>
-            <div className="graph-detail-path" onClick={() => void window.anamnesis.openFileFolder(selectedNode.path)} title="Open in file explorer">
+            <div className="graph-detail-path" onClick={(e) => { e.stopPropagation(); void window.anamnesis.openFileFolder(selectedNode.path); }} title="Open in file explorer">
               {selectedNode.path}
             </div>
             <div className="graph-detail-meta">
