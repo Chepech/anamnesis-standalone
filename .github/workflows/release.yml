@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "✗ Invalid version format: '$VERSION'"
+            echo "  Must be semver: X.Y.Z (e.g. 0.2.0, 1.0.0)"
+            exit 1
+          fi
+          echo "✓ Version format valid: $VERSION"
+
+      - name: Validate version is greater than latest tag
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          LATEST_TAG=$(git tag --sort=-version:refname | head -1 | sed 's/^v//')
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "✓ No existing tags — any version is valid"
+            exit 0
+          fi
+
+          echo "  Latest tag: v$LATEST_TAG"
+          echo "  New version: v$VERSION"
+
+          # Compare semver components
+          IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$LATEST_TAG"
+          IFS='.' read -r NEW_MAJOR NEW_MINOR NEW_PATCH <<< "$VERSION"
+
+          if [ "$NEW_MAJOR" -gt "$CUR_MAJOR" ]; then
+            echo "✓ Major version bump"
+            exit 0
+          elif [ "$NEW_MAJOR" -eq "$CUR_MAJOR" ] && [ "$NEW_MINOR" -gt "$CUR_MINOR" ]; then
+            echo "✓ Minor version bump"
+            exit 0
+          elif [ "$NEW_MAJOR" -eq "$CUR_MAJOR" ] && [ "$NEW_MINOR" -eq "$CUR_MINOR" ] && [ "$NEW_PATCH" -gt "$CUR_PATCH" ]; then
+            echo "✓ Patch version bump"
+            exit 0
+          fi
+
+          echo "✗ Version $VERSION is not greater than latest tag v$LATEST_TAG"
+          exit 1
+
+      - name: Bump version in package.json files
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" packages/core/package.json
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" packages/app/package.json
+
+          echo "Updated versions:"
+          grep '"version"' package.json packages/core/package.json packages/app/package.json
+
+      - name: Commit version bump
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json packages/core/package.json packages/app/package.json
+          git commit -m "chore: bump version to $VERSION"
+          git push origin main
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          echo "✓ Tag v$VERSION created and pushed"
+          echo "  → publish.yml will trigger and build installers"

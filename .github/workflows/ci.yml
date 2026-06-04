@@ -7,6 +7,23 @@ on:
     branches: [main]
 
 jobs:
+  branch-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if [[ "$BRANCH" == release/* ]] || [[ "$BRANCH" == hotfix/* ]]; then
+            echo "✓ Branch '$BRANCH' is allowed to merge into main"
+          else
+            echo "✗ Branch '$BRANCH' is not allowed to merge into main"
+            echo ""
+            echo "Only release/* and hotfix/* branches can merge to main."
+            echo "Feature branches should target a release/ branch first."
+            exit 1
+          fi
+
   ci:
     runs-on: ubuntu-latest
 

@@ -1,15 +1,9 @@
 name: Build
 
-# Trigger manually from the Actions tab, or automatically on every push to main.
-# Artifacts (installers) are retained for 14 days and downloadable from the run page.
+# Manual trigger only — use for testing installer builds without creating a release.
+# For releases, use the Release workflow (creates tag → publish.yml builds + uploads).
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/publish.yml'
 
 jobs:
   build:
