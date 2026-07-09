@@ -73,6 +73,11 @@ export class FileWatcher {
       persistent: true,
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
+      // Windows: chokidar's native fs.watch mode opens a persistent OS handle on
+      // every individual watched file (not just directories), which can prevent
+      // deleting/renaming those files for as long as the daemon is running.
+      // Polling avoids holding any file handles open.
+      usePolling: process.platform === "win32",
     });
 
     this.watcher
