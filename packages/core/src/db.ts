@@ -1,7 +1,8 @@
 import { join } from "path";
 import fs from "fs";
+import { Index } from "@lancedb/lancedb";
 
-export const SCHEMA_VERSION = "2";
+export const SCHEMA_VERSION = "3";
 
 export interface ChunkRecord extends Record<string, unknown> {
   id: string;
@@ -50,6 +51,7 @@ export class VectorDB {
 
     const table = await this.db.createTable(CHUNKS_TABLE, seed);
     await table.delete('id = "__seed__"');
+    await table.createIndex("text", { config: Index.fts() });
     console.debug(`[Anamnesis] Created chunks table (dim=${this.vectorDim}, schema=v${SCHEMA_VERSION})`);
     return table;
   }
@@ -163,6 +165,25 @@ export class VectorDB {
         _boosted_score: (r._distance ?? 1) - importanceWeight * Math.log(1 + (r.importance_score ?? 0)),
       }))
       .sort((a, b) => (a._boosted_score ?? 0) - (b._boosted_score ?? 0));
+  }
+
+  /** Full text search via LanceDB's native inverted index (BM25-ranked). */
+  async searchText(query: string, limit = 10): Promise<ChunkRecord[]> {
+    if (!this.db) throw new Error("DB not connected");
+    const table = await this.db.openTable(CHUNKS_TABLE);
+    const rows = await table.query().fullTextSearch(query, { columns: "text" }).limit(limit).toArray();
+    return rows as ChunkRecord[];
+  }
+
+  /** Merges newly-written fragments into the vector/FTS indices. Without this, rows added
+   *  since the last optimize are searched via an unindexed brute-force scan that FTS returns
+   *  with meaningless scores, so this must run after every write batch, not just periodically. */
+  async optimize(): Promise<void> {
+    if (!this.db) return;
+    const tableNames = await this.db.tableNames();
+    if (!tableNames.includes(CHUNKS_TABLE)) return;
+    const table = await this.db.openTable(CHUNKS_TABLE);
+    await table.optimize();
   }
 
   close(): void {

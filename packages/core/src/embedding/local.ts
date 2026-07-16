@@ -2,15 +2,7 @@ import path from "path";
 import os from "os";
 import { Worker } from "worker_threads";
 import type { EmbeddingProvider, WorkerToMainMsg } from "./bridge.js";
-
-export const LOCAL_MODEL_DIM: Record<string, number> = {
-  "Xenova/all-MiniLM-L6-v2": 384,
-  "Xenova/all-mpnet-base-v2": 768,
-  "Xenova/paraphrase-MiniLM-L3-v2": 384,
-  "BAAI/bge-base-en-v1.5": 768,
-  "BAAI/bge-small-en-v1.5": 384,
-  "sentence-transformers/all-MiniLM-L6-v2": 384,
-};
+import { LOCAL_MODELS } from "./models.js";
 
 type PendingEmbed = {
   resolve: (v: number[][]) => void;
@@ -41,7 +33,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     this.workerPath = workerPath;
     this.modelName = modelName;
     this.cacheDir = cacheDir ?? path.join(os.homedir(), ".cache", "anamnesis", "models");
-    this.dimension = LOCAL_MODEL_DIM[modelName] ?? 384;
+    this.dimension = LOCAL_MODELS[modelName]?.dim ?? 384;
     this.onProgress = onProgress;
   }
 
