@@ -1,6 +1,6 @@
 {
   "name": "@anamnesis/app",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Anamnesis tray app \u2014 Electron desktop interface",
   "repository": {
     "type": "git",
