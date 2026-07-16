@@ -17,7 +17,6 @@ import { VectorDB, SCHEMA_VERSION } from "./db.js";
 import { LocalEmbeddingProvider } from "./embedding/local.js";
 import { OpenAIEmbeddingProvider } from "./embedding/openai.js";
 import { IndexingEngine } from "./indexer.js";
-import { FTSIndex } from "./fts.js";
 import { HybridSearchEngine } from "./hybrid-search.js";
 import { FileWatcher } from "./watcher.js";
 import { AnamnesisServerMCP } from "./mcp-server.js";
@@ -36,7 +35,6 @@ let config: AnamnesisConfig = loadConfig(configPath);
 let db: VectorDB;
 let provider: EmbeddingProvider;
 let indexer: IndexingEngine;
-let fts: FTSIndex;
 let search: HybridSearchEngine;
 let watcher: FileWatcher;
 let mcp: AnamnesisServerMCP;
@@ -86,16 +84,12 @@ async function boot(): Promise<void> {
       (storedSchema !== null && storedSchema !== SCHEMA_VERSION) ||
       !config.initialIndexDone);
 
-  // ── FTS + search ──────────────────────────────────────────────────────────
-  fts = new FTSIndex();
+  // ── Indexer + search ──────────────────────────────────────────────────────
   indexer = new IndexingEngine(db, provider, config, (status) => {
     currentStatus = status;
     broadcastStatus(status);
-  }, fts);
-  search = new HybridSearchEngine(db, fts, provider, config);
-
-  // Rebuild FTS from existing index in background
-  void fts.rebuildFromDB(db).catch((e) => console.warn("[Anamnesis] FTS rebuild failed:", e));
+  });
+  search = new HybridSearchEngine(db, provider, config);
 
   // ── File watcher ──────────────────────────────────────────────────────────
   console.log("[Anamnesis] Initializing file watcher...");
