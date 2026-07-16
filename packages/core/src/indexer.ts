@@ -6,7 +6,6 @@ import { splitMarkdown } from "./chunker.js";
 import { parseFile, SUPPORTED_EXTENSIONS } from "./parsers/dispatcher.js";
 import type { EmbeddingProvider } from "./embedding/bridge.js";
 import type { AnamnesisConfig } from "./config.js";
-import type { FTSIndex } from "./fts.js";
 
 export type IndexStatus =
   | { state: "idle" }
@@ -67,7 +66,6 @@ export class IndexingEngine {
   private provider: EmbeddingProvider;
   private config: AnamnesisConfig;
   private onStatus: StatusCallback;
-  private fts: FTSIndex | null;
   private backlinks: BacklinkRegistry;
 
   private _running = false;
@@ -85,14 +83,12 @@ export class IndexingEngine {
     db: VectorDB,
     provider: EmbeddingProvider,
     config: AnamnesisConfig,
-    onStatus: StatusCallback,
-    fts: FTSIndex | null = null
+    onStatus: StatusCallback
   ) {
     this.db = db;
     this.provider = provider;
     this.config = config;
     this.onStatus = onStatus;
-    this.fts = fts;
     this.backlinks = new BacklinkRegistry();
   }
 
@@ -118,7 +114,6 @@ export class IndexingEngine {
 
     try {
       await this.db.dropTable();
-      this.fts?.clear();
       const table = await this.db.ensureTable();
 
       const allFiles = this.getIndexableFiles();
@@ -158,7 +153,6 @@ export class IndexingEngine {
         try {
           const records = await this.fileToRecords(file);
           if (records.length > 0) await table.add(records);
-          for (const r of records) this.fts?.add(r);
           this.mtimeCache.set(file.path, file.mtime);
         } catch (err) {
           console.warn(`[Anamnesis] Skipping "${file.basename}":`, err);
@@ -171,6 +165,7 @@ export class IndexingEngine {
 
       if (!this._cancelled) {
         this._lastIndexedCount = processed;
+        await this.db.optimize();
         console.debug(`[Anamnesis] Full index complete: ${processed} files`);
         success = true;
       }
@@ -231,13 +226,12 @@ export class IndexingEngine {
         if (this._cancelled) break;
         this.onStatus({ state: "indexing", current: processed, total, label: file.basename });
         await table.delete(`file_path = "${escape(file.path)}"`);
-        this.fts?.removeByFile(file.path);
         const records = await this.fileToRecords(file);
         if (records.length > 0) await table.add(records);
-        for (const r of records) this.fts?.add(r);
         this.mtimeCache.set(file.path, file.mtime);
         processed++;
       }
+      if (processed > 0) await this.db.optimize();
       console.debug(`[Anamnesis] Batch indexed ${processed} file(s)`);
       this.onStatus({ state: "idle" });
     } catch (err) {
@@ -252,7 +246,6 @@ export class IndexingEngine {
 
   async deleteFile(filePath: string): Promise<void> {
     this.mtimeCache.delete(filePath);
-    this.fts?.removeByFile(filePath);
     try {
       const table = await this.db.openTable();
       await table.delete(`file_path = "${escape(filePath)}"`);

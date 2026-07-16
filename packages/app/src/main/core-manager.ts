@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
-import http from "http";
 import { app } from "electron";
 
 export type CoreStatus = "stopped" | "starting" | "running" | "error";
@@ -205,60 +204,36 @@ export class CoreManager {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
-  private get<T>(endpoint: string, timeoutMs = 30_000): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const req = http.get(`http://127.0.0.1:${this.mgmtPort}${endpoint}`, (res) => {
-        let body = "";
-        res.on("data", (c: Buffer) => { body += c; });
-        res.on("end", () => {
-          let parsed: unknown;
-          try { parsed = JSON.parse(body); } catch { reject(new Error("bad json")); return; }
-          if ((res.statusCode ?? 200) >= 400) {
-            const msg = (parsed as { error?: string })?.error ?? `HTTP ${res.statusCode}`;
-            reject(new Error(msg));
-          } else {
-            resolve(parsed as T);
-          }
-        });
-      });
-      req.on("error", (err) => {
-        console.error("[Anamnesis:CoreManager] HTTP GET error on", endpoint, ":", err.message, "(connecting to port", this.mgmtPort, ")");
-        console.error("[Anamnesis:CoreManager] Full error:", err);
-        reject(err);
-      });
-      req.setTimeout(timeoutMs, () => req.destroy());
-    });
+  private async get<T>(endpoint: string, timeoutMs = 30_000): Promise<T> {
+    try {
+      const res = await fetch(`http://127.0.0.1:${this.mgmtPort}${endpoint}`, { signal: AbortSignal.timeout(timeoutMs) });
+      let parsed: unknown;
+      try { parsed = JSON.parse(await res.text()); } catch { throw new Error("bad json"); }
+      if (!res.ok) throw new Error((parsed as { error?: string })?.error ?? `HTTP ${res.status}`);
+      return parsed as T;
+    } catch (err) {
+      console.error("[Anamnesis:CoreManager] HTTP GET error on", endpoint, ":", (err as Error).message, "(connecting to port", this.mgmtPort, ")");
+      throw err;
+    }
   }
 
-  private post(endpoint: string, data?: unknown): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const body = data ? JSON.stringify(data) : "";
-      const req = http.request(
-        { hostname: "127.0.0.1", port: this.mgmtPort, path: endpoint, method: "POST",
-          headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
-        (res) => {
-          let resBody = "";
-          res.on("data", (c: Buffer) => { resBody += c; });
-          res.on("end", () => {
-            if ((res.statusCode ?? 200) >= 400) {
-              let msg = `HTTP ${res.statusCode ?? "error"}`;
-              try { msg = (JSON.parse(resBody) as { error?: string }).error ?? msg; } catch { /* use default */ }
-              reject(new Error(msg));
-            } else {
-              resolve();
-            }
-          });
-        }
-      );
-      req.on("error", (err) => {
-        console.error("[Anamnesis:CoreManager] HTTP POST error on", endpoint, ":", err.message, "(connecting to port", this.mgmtPort, ")");
-        console.error("[Anamnesis:CoreManager] Full error:", err);
-        reject(err);
+  private async post(endpoint: string, data?: unknown): Promise<void> {
+    try {
+      const res = await fetch(`http://127.0.0.1:${this.mgmtPort}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: data ? JSON.stringify(data) : undefined,
+        signal: AbortSignal.timeout(5_000),
       });
-      req.setTimeout(5_000, () => req.destroy());
-      if (body) req.write(body);
-      req.end();
-    });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { msg = (JSON.parse(await res.text()) as { error?: string }).error ?? msg; } catch { /* use default */ }
+        throw new Error(msg);
+      }
+    } catch (err) {
+      console.error("[Anamnesis:CoreManager] HTTP POST error on", endpoint, ":", (err as Error).message, "(connecting to port", this.mgmtPort, ")");
+      throw err;
+    }
   }
 
   private _setStatus(status: CoreStatus, error?: string): void {
